@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ActionButton } from "@/components/action-button";
 import { Card } from "@/components/card";
+import { StatusChip } from "@/components/status-chip";
 import { getTemplatesByIds } from "@/lib/hevy/catalog";
 import { getSyncState } from "@/lib/hevy/sync";
 import { getPlan } from "@/lib/plans";
@@ -17,11 +18,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 function Notice({ tone, children }: { tone: "info" | "warn"; children: React.ReactNode }) {
-  const classes =
-    tone === "warn"
-      ? "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200"
-      : "border-black/10 bg-black/[0.03] dark:border-white/15 dark:bg-white/[0.04]";
-  return <div className={`rounded-md border px-3 py-2 text-sm ${classes}`}>{children}</div>;
+  return <div className={`hud-notice hud-notice--${tone}`}>{children}</div>;
 }
 
 export default async function PlanPage({ params, searchParams }: PageProps<"/plans/[id]">) {
@@ -46,13 +43,28 @@ export default async function PlanPage({ params, searchParams }: PageProps<"/pla
   const violations = plan ? validatePlan(plan, row.request, catalog) : [];
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">{plan?.title ?? "Untitled plan"}</h1>
-        <p className="text-sm opacity-70">
-          {row.request.sessionsPerWeek} sessions/week · {row.request.sessionMinutes} min ·{" "}
-          {row.request.experience} · {row.request.goal}
-        </p>
+    <div className="hud-shell max-w-3xl">
+      <header className="reveal flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <span className="hud-eyebrow">Plan {String(planId).padStart(3, "0")}</span>
+          <h1 className="hud-h1">{plan?.title ?? "Untitled plan"}</h1>
+          <p className="hud-mono text-xs text-hud-dim">
+            {row.request.sessionsPerWeek} sessions/wk · {row.request.sessionMinutes} min ·{" "}
+            {row.request.experience} · {row.request.goal}
+          </p>
+        </div>
+        {plan && (
+          <StatusChip
+            tone={syncState.syncedDays === 0 ? "alert" : syncState.hasPendingChanges ? "warn" : "ok"}
+            pulse={syncState.hasPendingChanges}
+          >
+            {syncState.syncedDays === 0
+              ? "Not synced"
+              : syncState.hasPendingChanges
+                ? "Changes pending"
+                : "Synced"}
+          </StatusChip>
+        )}
       </header>
 
       {justGenerated === "rules" && !degraded && (
@@ -79,13 +91,14 @@ export default async function PlanPage({ params, searchParams }: PageProps<"/pla
 
       {plan ? (
         <>
-          <Card title="Progression">
+          <Card eyebrow="Method" title="Progression">
             <p className="text-sm leading-relaxed">{plan.progression}</p>
           </Card>
 
           <PlanPreview plan={plan} />
 
           <Card
+            eyebrow="Transmit"
             title="Sync to Hevy"
             description={
               syncState.syncedDays === 0
@@ -132,7 +145,11 @@ export default async function PlanPage({ params, searchParams }: PageProps<"/pla
           </Card>
         </>
       ) : (
-        <Card title="Not generated yet" description="This plan has a request but no sessions.">
+        <Card
+          eyebrow="Standby"
+          title="Not generated yet"
+          description="This plan has a request but no sessions."
+        >
           <ActionButton
             action={regeneratePlanAction.bind(null, planId)}
             label="Generate now"

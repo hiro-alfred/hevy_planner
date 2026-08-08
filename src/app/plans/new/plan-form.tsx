@@ -23,8 +23,7 @@ const EXPERIENCE = [
   { value: "advanced", label: "Advanced" },
 ];
 
-const fieldClasses =
-  "rounded-md border border-black/15 bg-transparent px-3 py-2 text-sm dark:border-white/20";
+const LABEL_CLASSES = "hud-mono text-[0.625rem] tracking-[0.18em] text-hud-cyan uppercase";
 
 function Field({
   label,
@@ -38,12 +37,12 @@ function Field({
   hint?: string;
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={htmlFor} className="text-sm font-medium">
+    <div className="flex flex-col gap-2">
+      <label htmlFor={htmlFor} className={LABEL_CLASSES}>
         {label}
       </label>
       {children}
-      {hint && <p className="text-xs opacity-60">{hint}</p>}
+      {hint && <p className="text-xs text-hud-dim">{hint}</p>}
     </div>
   );
 }
@@ -56,7 +55,7 @@ export function PlanForm() {
   const [state, formAction, isPending] = useActionState(createPlanAction, IDLE);
 
   return (
-    <form action={formAction} className="flex flex-col gap-5">
+    <form action={formAction} className="flex flex-col gap-6">
       <Field
         label="What are you training for?"
         htmlFor="goal"
@@ -67,13 +66,13 @@ export function PlanForm() {
           name="goal"
           required
           defaultValue="Build muscle and get stronger"
-          className={fieldClasses}
+          className="hud-field"
         />
       </Field>
 
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid gap-6 sm:grid-cols-2">
         <Field label="Sessions per week" htmlFor="sessionsPerWeek">
-          <select id="sessionsPerWeek" name="sessionsPerWeek" defaultValue={4} className={fieldClasses}>
+          <select id="sessionsPerWeek" name="sessionsPerWeek" defaultValue={4} className="hud-field">
             {SESSIONS.map((n) => (
               <option key={n} value={n}>
                 {n} days
@@ -83,7 +82,7 @@ export function PlanForm() {
         </Field>
 
         <Field label="Session length" htmlFor="sessionMinutes">
-          <select id="sessionMinutes" name="sessionMinutes" defaultValue={60} className={fieldClasses}>
+          <select id="sessionMinutes" name="sessionMinutes" defaultValue={60} className="hud-field">
             {MINUTES.map((n) => (
               <option key={n} value={n}>
                 {n} minutes
@@ -93,7 +92,7 @@ export function PlanForm() {
         </Field>
 
         <Field label="Split" htmlFor="split">
-          <select id="split" name="split" defaultValue="auto" className={fieldClasses}>
+          <select id="split" name="split" defaultValue="auto" className="hud-field">
             {SPLITS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -103,7 +102,7 @@ export function PlanForm() {
         </Field>
 
         <Field label="Experience" htmlFor="experience">
-          <select id="experience" name="experience" defaultValue="intermediate" className={fieldClasses}>
+          <select id="experience" name="experience" defaultValue="intermediate" className="hud-field">
             {EXPERIENCE.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -113,11 +112,11 @@ export function PlanForm() {
         </Field>
       </div>
 
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-sm font-medium">Equipment you can use</legend>
+      <fieldset className="flex flex-col gap-3">
+        <legend className={`mb-3 ${LABEL_CLASSES}`}>Equipment you can use</legend>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {EQUIPMENT_CATEGORIES.map((category) => (
-            <label key={category} className="flex items-center gap-2 text-sm">
+            <label key={category} className="hud-check">
               <input
                 type="checkbox"
                 name="equipment"
@@ -130,11 +129,11 @@ export function PlanForm() {
         </div>
       </fieldset>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3 border-t border-hud-line-soft pt-5">
         <button type="submit" disabled={isPending} className={buttonClasses("primary")}>
           {isPending ? "Building your plan…" : "Generate plan"}
         </button>
-        <span className="text-xs opacity-70">
+        <span className="hud-sub text-xs">
           Nothing is sent to Hevy until you review the plan and press sync.
         </span>
       </div>

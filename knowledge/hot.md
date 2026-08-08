@@ -16,83 +16,80 @@ latest state. History belongs in [[log]] — this page holds only the CURRENT st
 Keep the four sections below; they are the template.
 
 ## Active task
-Making the **container path runnable on this machine** ([[deployment]]) — the
-last of the three unproven paths that is blocked by tooling rather than by a
-missing key. The repo side is done; the host side is half done and **waiting on
-a reboot**.
+UI revamped from the Tailwind starter defaults to a **neon-HUD theme**
+([[ui-design-system]]) — dark-only, animated canvas backdrop, scroll reveal,
+pointer-tracked panel glow, count-up stat tiles. All checks green: lint,
+`tsc --noEmit`, 90 vitest tests, `npm run build`. Dashboard, settings and the
+plan form were verified in a real browser; `/plans/[id]` was not (no plans in
+the DB).
+
+**The app cannot boot on the committed `.env`** — see the blocker below. That is
+the first thing to fix next session.
 
 ## State reached
-- **WSL2 prerequisites enabled.** `Microsoft-Windows-Subsystem-Linux` and
-  `VirtualMachinePlatform` both report `Enabled` after
-  `dism /online /enable-feature /all /norestart` (run elevated, exit 3010 =
-  reboot required). Before this the box had VT-x and SLAT in firmware but no
-  hypervisor at all. Nothing else is installed yet: no WSL distro, no kernel
-  update, no Docker Desktop.
-- **`docker-compose.yml` fixed on two counts**, both of which would have bitten
-  on the first `compose up`:
-  - the `app` service passed `ANTHROPIC_API_KEY`, a name nothing has read since
-    the provider became configurable. It now passes the `LLM_*` family that
-    `src/lib/planner/provider.ts` actually reads. Because a missing key falls
-    back to the rule-based generator instead of erroring, this would have looked
-    like a working container writing worse plans.
-  - the host port is now `${APP_PORT:-3000}`, documented in `.env.example`. A
-    node process holds 3000 on this machine (the dev server is on 3001), so the
-    hard-coded mapping would have failed the bind.
-- Both compose files still parse. The app itself is unchanged — `dev` @
-  `bd6769b` plus these two files.
+- **Neon-HUD UI shipped.** New CSS layer (`globals.css` → `hud.css` +
+  `hud-controls.css` + `animations.css`) and six components: `hud-backdrop`,
+  `pointer-glow`, `reveal-observer`, `count-up`, `status-chip`, `stat-tile`.
+  Every page and shared component restyled. Two bugs found by LOOKING at
+  screenshots rather than trusting green checks: the button hover-sweep sat
+  permanently visible (a `::before` with no `left`), and `ActionButton`
+  stretched full-width in column layouts. Both fixed; both recorded in
+  [[ui-design-system]].
+- Unchanged from before: MariaDB ([[mariadb-migration]]), 452 cached templates
+  ([[catalog-service]]), the encrypted Hevy key ([[key-handling]], still
+  configured, `····0C88`), DeepSeek wired but unexercised ([[plan-generation]]).
 
 ## Open questions / dissents
-- **Unproven: the container path**, still. Enabling the features proves nothing
-  about the compose wiring, the `depends_on` healthcheck or the boot-migration
-  retry; the first `compose up` remains unobserved ground, and local MariaDB is
-  12.3 against the 11.4 pinned in the compose files.
-- **Unproven: LLM generation.** No `LLM_API_KEY` anywhere yet. Note that
-  `@ai-sdk/deepseek` does not set `supportsStructuredOutputs`, so
-  `generateObject` runs in `json_object` mode, which DeepSeek documents as
-  occasionally returning empty content — check `source` before judging a plan.
-- **Unproven: the live Hevy write path.** Sync has only ever run against a stub,
-  and it is irreversible — no DELETE endpoint, plus a routine cap
-  ([[hevy-api]]). The first real sync must be a 2-day plan.
-- **Uncommitted UI work in the tree is the owner's, in progress — leave it
-  alone.** A HUD/animation layer (`hud.css`, `animations.css`,
-  `hud-backdrop.tsx`, `pointer-glow.tsx`, `reveal-observer.tsx`, `count-up.tsx`,
-  `stat-tile.tsx`, `status-chip.tsx` plus edits across the pages and
-  `globals.css`). Do not commit, revert or refactor it, and do not re-flag it.
-  One thing to mention only if it comes up: `hud.css` is 461 lines, over the
-  300-line rule in CLAUDE.md.
-- **`data/` still holds the pre-migration SQLite file, which likely contains the
-  Hevy key IN PLAINTEXT.** Gitignored, not deleted — the owner's data, their
-  call. Flagged three times now.
-- Hosting undecided (netcup leaning). No backup story yet; losing `sync_links`
-  is the expensive failure, because re-sync would create DUPLICATE Hevy routines
-  that cannot be deleted.
+- **BLOCKER — `.env` `DATABASE_URL` is wrong.** A fresh boot dies in
+  `instrumentation.ts` with `Access denied for user 'hevy'@'localhost'`. The
+  database is fine: `hevy`/`hevydev` connects from the MariaDB CLI and
+  `hevy_planner` still holds 452 templates and the encrypted key. So it is the
+  credential string in `.env` — most likely from the blind appends this file
+  warns about below. The previous server never showed it because it connected
+  at boot and Next reloads `.env` WITHOUT re-running instrumentation, so the
+  breakage sat latent. It was worked around this session by overriding
+  `DATABASE_URL` in the process environment (Next does not override vars
+  already set there) — that override dies with the terminal.
+- **Unproven: `/plans/[id]` has never rendered.** Zero plans in the database.
+  Generating one plan exercises the LLM path AND this page at once.
+- **Unproven: LLM generation.** No `LLM_API_KEY`. Note `@ai-sdk/deepseek` does
+  not set `supportsStructuredOutputs`, so `generateObject` runs in
+  `json_object` mode, which can return empty content — check `source` before
+  judging a plan.
+- **Unproven: the live Hevy write path.** Sync has only run against a stub, and
+  it is irreversible (no DELETE, routine cap — [[hevy-api]]). First real sync
+  must be a 2-day plan.
+- **Unproven: the container path.** No Docker daemon on this machine
+  ([[deployment]]).
+- **`data/` still holds the pre-migration SQLite file, likely containing the
+  Hevy key IN PLAINTEXT.** Gitignored, not deleted — the owner's call. Flagged
+  three times now.
+- Hosting undecided (netcup leaning). No backup story; losing `sync_links` is
+  the expensive failure ([[hevy-sync]]).
 - `.claude/worktrees/e2e-build` is fully merged and redundant; safe to
   `git worktree remove`.
 
 ## Local dev setup (this machine)
-MariaDB 12.3.2 native via winget, running as a Windows service; root and app
-user `hevy` both use the throwaway password `hevydev`. The `mariadb` CLI is not
-on PATH (`C:\Program Files\MariaDB 12.3\bin\`). `npm run dev` serves **port
-3001**. Tests need the server:
-`TEST_DATABASE_URL="mysql://root:hevydev@127.0.0.1:3306" npm test`.
-Elevation: this session's shell is not admin — `Start-Process -Verb RunAs`
-works and prompts UAC, which is how the dism run above was done.
+MariaDB 12.3.2 installed natively via `winget install MariaDB.Server`, running as
+a Windows service; root and app user `hevy` both use the throwaway password
+`hevydev`. The `mariadb` CLI is NOT on PATH (it lives in
+`C:\Program Files\MariaDB 12.3\bin\`).
+**`npm run dev` now serves port 3000** — the stale `next start` that had been
+holding 3000 was killed this session, so dev no longer falls through to 3001.
+Tests need the server: `TEST_DATABASE_URL="mysql://root:hevydev@127.0.0.1:3306" npm test`.
 
 > [!warning] `.env` must never be read (CLAUDE.md)
 > Append new keys rather than rewriting the file, and only with names that
-> cannot already exist in it.
+> cannot already exist in it. The blocker above is what blind appends cost.
 
 ## Next steps
-1. **Reboot**, then finish the daemon: `wsl --update`,
-   `wsl --set-default-version 2`, `wsl --install -d Ubuntu`,
-   `winget install -e --id Docker.DockerDesktop` (all elevated), then one manual
-   Docker Desktop launch for the terms and the WSL2-engine checkbox.
-2. Prove it cheaply first: `docker run --rm hello-world`, then
-   `docker compose -f docker-compose.test.yml up -d` with the suite pointed at
-   3307 ([[testing-setup]]), and only then `docker compose up --build`. Set
-   `APP_PORT` if the dev server still holds 3000.
-3. **Owner adds `LLM_API_KEY=<deepseek key>` to `.env`**, restart, generate one
-   plan, confirm the preview reports an LLM plan and not a rules fallback.
-4. **Sync one 2-day plan to Hevy.** First write to the live account;
-   irreversible.
-5. Ask about the stray UI files and about deleting `data/`.
+1. **Fix `DATABASE_URL` in `.env`** so `npm run dev` boots unaided — a known-good
+   value is `mysql://hevy:hevydev@127.0.0.1:3306/hevy_planner`. Confirm by
+   starting dev with no environment override and loading `/`.
+2. **Add `LLM_API_KEY=<deepseek key>`**, restart, generate one plan. This closes
+   two gaps at once: the LLM path, and the first-ever render of `/plans/[id]`.
+   Check the preview reports an LLM plan rather than a rules fallback, and look
+   at the HUD styling on that page.
+3. **Sync one 2-day plan to Hevy.** First write to the live account; irreversible.
+4. Offer to delete `data/` (plaintext key leftover) — ask, do not assume.
+5. Deploy: prove `docker compose up`, add a `mysqldump` backup cron, pick the VPS.

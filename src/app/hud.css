@@ -1,0 +1,200 @@
+/* HUD component classes: page shell, type scale, panels and list rows.
+ * Buttons, fields, chips, notices, nav and stat tiles are in hud-controls.css —
+ * split only to stay under the 300-line-per-file rule in CLAUDE.md.
+ *
+ * These live in CSS rather than as Tailwind class soup in the JSX because the
+ * look leans on pseudo-elements (corner brackets, glow layers, hover sweeps)
+ * that utility classes cannot express, and because the project bans inline
+ * styles — so there is nowhere else for them to go.
+ */
+
+@layer components {
+  /* ---- layout ---------------------------------------------------------- */
+
+  .hud-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    /* The canvas paints nodes and beams; this wash sits behind it so the top
+     * of the page is never flatly black. */
+    background:
+      radial-gradient(90% 60% at 15% -10%, color-mix(in srgb, var(--color-hud-cyan) 12%, transparent), transparent 70%),
+      radial-gradient(70% 50% at 90% 0%, color-mix(in srgb, var(--color-hud-magenta) 10%, transparent), transparent 70%);
+  }
+
+  .hud-shell {
+    margin-inline: auto;
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 2rem 1.5rem 4rem;
+  }
+
+  /* ---- type ------------------------------------------------------------ */
+
+  .hud-eyebrow {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.6875rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-hud-cyan);
+  }
+
+  .hud-h1 {
+    font-size: clamp(1.75rem, 1.2rem + 2vw, 2.5rem);
+    font-weight: 600;
+    line-height: 1.05;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    text-shadow: 0 0 26px color-mix(in srgb, var(--color-hud-cyan) 35%, transparent);
+  }
+
+  .hud-sub {
+    font-size: 0.875rem;
+    color: var(--color-hud-dim);
+  }
+
+  .hud-mono {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- panel ----------------------------------------------------------- */
+
+  .hud-panel {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--color-hud-line);
+    background:
+      linear-gradient(
+        160deg,
+        color-mix(in srgb, var(--color-hud-panel) 92%, transparent),
+        color-mix(in srgb, var(--color-hud-bg-2) 92%, transparent)
+      );
+    backdrop-filter: blur(6px);
+    transition:
+      border-color 0.25s ease,
+      box-shadow 0.35s ease,
+      transform 0.25s ease;
+  }
+
+  .hud-panel:hover {
+    border-color: color-mix(in srgb, var(--color-hud-cyan) 55%, var(--color-hud-line));
+    box-shadow: 0 0 34px -12px color-mix(in srgb, var(--color-hud-cyan) 70%, transparent);
+  }
+
+  /* Corner brackets: two L shapes drawn with borders on the pseudo-elements. */
+  .hud-panel::before,
+  .hud-panel::after {
+    content: "";
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: var(--color-hud-cyan);
+    opacity: 0.65;
+    transition: opacity 0.25s ease;
+  }
+
+  .hud-panel::before {
+    top: -1px;
+    left: -1px;
+    border-top: 2px solid;
+    border-left: 2px solid;
+  }
+
+  .hud-panel::after {
+    right: -1px;
+    bottom: -1px;
+    border-right: 2px solid;
+    border-bottom: 2px solid;
+  }
+
+  .hud-panel:hover::before,
+  .hud-panel:hover::after {
+    opacity: 1;
+  }
+
+  /* Pointer-tracked glow. usePointerGlow writes --glow-x / --glow-y. */
+  .hud-panel__glow {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    background: radial-gradient(
+      260px circle at var(--glow-x) var(--glow-y),
+      color-mix(in srgb, var(--color-hud-cyan) 14%, transparent),
+      transparent 70%
+    );
+  }
+
+  .hud-panel:hover .hud-panel__glow {
+    opacity: 1;
+  }
+
+  /* Single bright line falling down the panel while the pointer is on it. */
+  .hud-panel__scan {
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 1px;
+    pointer-events: none;
+    opacity: 0;
+    background: linear-gradient(to right, transparent, var(--color-hud-cyan), transparent);
+  }
+
+  .hud-panel:hover .hud-panel__scan {
+    animation: hud-scan 2.4s linear infinite;
+  }
+
+  .hud-panel__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid var(--color-hud-line-soft);
+    padding: 1rem 1.25rem;
+  }
+
+  .hud-panel__body {
+    padding: 1.25rem;
+  }
+
+  /* ---- rows ------------------------------------------------------------ */
+
+  .hud-row {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.25rem 1rem;
+    padding: 0.75rem 1.25rem;
+    transition: background-color 0.2s ease, padding-left 0.2s ease;
+  }
+
+  /* Accent bar that grows out of the left edge on hover. */
+  .hud-row::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--color-hud-cyan);
+    transform: scaleY(0);
+    transform-origin: center;
+    transition: transform 0.22s ease;
+  }
+
+  .hud-row:hover {
+    background-color: color-mix(in srgb, var(--color-hud-cyan) 6%, transparent);
+    padding-left: 1.5rem;
+  }
+
+  .hud-row:hover::before {
+    transform: scaleY(1);
+  }
+}

@@ -21,7 +21,10 @@ export function HevyKeyForm() {
 
   return (
     <form action={formAction} className="flex flex-col gap-3">
-      <label htmlFor="apiKey" className="text-sm font-medium">
+      <label
+        htmlFor="apiKey"
+        className="hud-mono text-[0.625rem] tracking-[0.18em] text-hud-cyan uppercase"
+      >
         Hevy API key
       </label>
       <input
@@ -31,13 +34,13 @@ export function HevyKeyForm() {
         autoComplete="off"
         spellCheck={false}
         placeholder="Paste your key — it is stored on this server only"
-        className="rounded-md border border-black/15 px-3 py-2 text-sm dark:border-white/20"
+        className="hud-field hud-mono"
       />
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button type="submit" disabled={isPending} className={buttonClasses("primary")}>
           {isPending ? "Verifying…" : "Save key"}
         </button>
-        <span className="text-xs opacity-70">Verified against Hevy before it is saved.</span>
+        <span className="hud-sub text-xs">Verified against Hevy before it is saved.</span>
       </div>
       <ActionMessage state={isPending ? IDLE : state} />
     </form>

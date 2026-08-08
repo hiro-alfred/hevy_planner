@@ -16,16 +16,18 @@ export default async function NewPlanPage() {
   const canGenerate = catalog.count > 0;
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">New plan</h1>
-        <p className="text-sm opacity-70">
+    <div className="hud-shell max-w-2xl">
+      <header className="reveal flex flex-col gap-2">
+        <span className="hud-eyebrow">Compose</span>
+        <h1 className="hud-h1">New plan</h1>
+        <p className="hud-sub">
           Describe the training you want. Exercises are chosen from your cached Hevy catalog.
         </p>
       </header>
 
       {!canGenerate && (
         <Card
+          eyebrow="Blocked"
           title="Exercise catalog is empty"
           description="Plans are built from Hevy's exercise library, which has to be cached locally first."
         >
@@ -33,7 +35,7 @@ export default async function NewPlanPage() {
             {keyStatus.configured
               ? "Fetch the catalog on the "
               : "Add your Hevy API key and fetch the catalog on the "}
-            <Link href="/settings" className="underline">
+            <Link href="/settings" className="text-hud-cyan underline underline-offset-4">
               settings page
             </Link>
             , then come back.
@@ -42,7 +44,11 @@ export default async function NewPlanPage() {
       )}
 
       {canGenerate && (
-        <Card title="Plan request" description={`${catalog.count} exercises available.`}>
+        <Card
+          eyebrow="Request"
+          title="Plan request"
+          description={`${catalog.count} exercises available.`}
+        >
           <PlanForm />
         </Card>
       )}

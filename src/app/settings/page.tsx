@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ActionButton } from "@/components/action-button";
 import { Card } from "@/components/card";
+import { StatusChip } from "@/components/status-chip";
 import { getCatalogStatus } from "@/lib/hevy/catalog";
 import { getHevyKeyStatus } from "@/lib/settings";
 import { clearHevyKeyAction, refreshCatalogAction, testConnectionAction } from "./actions";
@@ -18,60 +19,70 @@ function formatWhen(iso: string | null): string {
   return new Date(iso).toLocaleString();
 }
 
+// Label/value pair styled as an instrument readout rather than a definition list.
+function Readout({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2">
+      <dt className="hud-mono text-[0.625rem] tracking-[0.18em] text-hud-dim uppercase">
+        {label}
+      </dt>
+      <dd className="text-sm">{children}</dd>
+    </div>
+  );
+}
+
 export default async function SettingsPage() {
   // Only the MASKED status crosses into the render tree — getHevyApiKey (the
   // raw value) is never called from a component.
   const [keyStatus, catalog] = await Promise.all([getHevyKeyStatus(), getCatalogStatus()]);
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="text-sm opacity-70">
+    <div className="hud-shell max-w-2xl">
+      <header className="reveal flex flex-col gap-2">
+        <span className="hud-eyebrow">Configuration</span>
+        <h1 className="hud-h1">Settings</h1>
+        <p className="hud-sub">
           Connect your Hevy account and keep the local exercise catalog fresh.
         </p>
       </header>
 
       <Card
+        eyebrow="Link"
         title="Hevy connection"
         description="A Hevy Pro developer key from hevy.com/settings?developer."
       >
-        <div className="flex flex-col gap-4">
-          <dl className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
-            <div className="flex items-center gap-2">
-              <dt className="opacity-70">Status</dt>
-              <dd className="font-medium">
-                {keyStatus.configured ? (
-                  <span className="text-emerald-600 dark:text-emerald-400">
-                    Set ✓ · ····{keyStatus.last4}
-                  </span>
-                ) : keyStatus.undecryptable ? (
-                  // Not the same as "no key": one is stored, but the encryption
-                  // key that wrote it is gone or changed. Saying "Not
-                  // configured" would send the user hunting for a missing key.
-                  <span className="text-amber-600 dark:text-amber-400">
-                    Stored but unreadable — SETTINGS_ENCRYPTION_KEY does not match
-                  </span>
-                ) : (
-                  <span className="opacity-70">Not configured</span>
-                )}
-              </dd>
-            </div>
-            <div className="flex items-center gap-2">
-              <dt className="opacity-70">Source</dt>
-              <dd>{keyStatus.fromEnv ? "HEVY_API_KEY env var" : "This settings page"}</dd>
-            </div>
+        <div className="flex flex-col gap-5">
+          <dl className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <Readout label="Status">
+              {keyStatus.configured ? (
+                <StatusChip tone="ok">Set · ····{keyStatus.last4}</StatusChip>
+              ) : keyStatus.undecryptable ? (
+                // Not the same as "no key": one is stored, but the encryption
+                // key that wrote it is gone or changed. Saying "Not
+                // configured" would send the user hunting for a missing key.
+                <StatusChip tone="warn">Unreadable · key mismatch</StatusChip>
+              ) : (
+                <StatusChip tone="idle">Not configured</StatusChip>
+              )}
+            </Readout>
+            <Readout label="Source">
+              {keyStatus.fromEnv ? "HEVY_API_KEY env var" : "This settings page"}
+            </Readout>
             {keyStatus.updatedAt && (
-              <div className="flex items-center gap-2">
-                <dt className="opacity-70">Updated</dt>
-                <dd>{formatWhen(keyStatus.updatedAt)}</dd>
-              </div>
+              <Readout label="Updated">{formatWhen(keyStatus.updatedAt)}</Readout>
             )}
           </dl>
 
+          {keyStatus.undecryptable && (
+            <p className="hud-notice hud-notice--warn">
+              A key is stored but SETTINGS_ENCRYPTION_KEY no longer matches the one that
+              encrypted it. Saving a new key overwrites it.
+            </p>
+          )}
+
           <HevyKeyForm />
 
-          <div className="flex flex-wrap items-start gap-3 border-t border-black/10 pt-4 dark:border-white/15">
+          <div className="flex flex-wrap items-start gap-3 border-t border-hud-line-soft pt-5">
             <ActionButton
               action={testConnectionAction}
               label="Test connection"
@@ -91,19 +102,16 @@ export default async function SettingsPage() {
       </Card>
 
       <Card
+        eyebrow="Cache"
         title="Exercise catalog"
         description="Hevy has no exercise search endpoint, so the whole library is cached locally and used to build plans."
       >
-        <div className="flex flex-col gap-4">
-          <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-            <div className="flex items-center gap-2">
-              <dt className="opacity-70">Cached exercises</dt>
-              <dd className="font-medium">{catalog.count}</dd>
-            </div>
-            <div className="flex items-center gap-2">
-              <dt className="opacity-70">Last refreshed</dt>
-              <dd>{formatWhen(catalog.lastRefreshedAt)}</dd>
-            </div>
+        <div className="flex flex-col gap-5">
+          <dl className="flex flex-wrap gap-x-6 gap-y-2">
+            <Readout label="Cached">
+              <span className="hud-mono">{catalog.count}</span> exercises
+            </Readout>
+            <Readout label="Refreshed">{formatWhen(catalog.lastRefreshedAt)}</Readout>
           </dl>
           <ActionButton
             action={refreshCatalogAction}
@@ -112,7 +120,7 @@ export default async function SettingsPage() {
             tone={catalog.count === 0 ? "primary" : "secondary"}
           />
           {catalog.count === 0 && (
-            <p className="text-sm opacity-70">
+            <p className="hud-sub">
               Plan generation needs this cache. Fetch it once after saving your key.
             </p>
           )}

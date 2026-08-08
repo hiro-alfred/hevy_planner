@@ -1,0 +1,155 @@
+/* Motion layer for the HUD theme.
+ *
+ * Every animation is opt-in through a class, and the prefers-reduced-motion
+ * block at the bottom switches all of them off in one place — so nothing here
+ * needs to remember to opt out individually.
+ */
+
+@keyframes hud-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes hud-grid-drift {
+  from {
+    background-position: 0 0, 0 0;
+  }
+  to {
+    background-position: 0 var(--hud-grid-size), 0 var(--hud-grid-size);
+  }
+}
+
+/* One bright line falling down a panel edge — the "this thing is live" cue. */
+@keyframes hud-scan {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(2400%);
+    opacity: 0;
+  }
+}
+
+@keyframes hud-blip {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  50% {
+    opacity: 0.55;
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+
+@keyframes hud-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px var(--color-hud-cyan),
+      0 0 18px -4px var(--color-hud-cyan);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px var(--color-hud-cyan),
+      0 0 30px 0 var(--color-hud-cyan);
+  }
+}
+
+/* Barely-there flicker on the wordmark. Long pauses between blips, otherwise
+ * it reads as a rendering bug rather than a CRT. */
+@keyframes hud-flicker {
+  0%,
+  92%,
+  96%,
+  100% {
+    opacity: 1;
+  }
+  94% {
+    opacity: 0.72;
+  }
+}
+
+@keyframes hud-sweep {
+  from {
+    transform: translateX(-160%) skewX(-20deg);
+  }
+  to {
+    transform: translateX(320%) skewX(-20deg);
+  }
+}
+
+@layer components {
+  /* Scroll reveal. Elements ship hidden and the Reveal client component adds
+   * .is-visible; anything already on screen at mount is revealed immediately,
+   * so nothing depends on the user actually scrolling. */
+  .reveal {
+    opacity: 0;
+  }
+
+  .reveal.is-visible {
+    animation: hud-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* Stagger for lists. Fixed classes rather than a JS-set custom property,
+   * because the project bans inline style attributes. */
+  .reveal--d1.is-visible {
+    animation-delay: 60ms;
+  }
+  .reveal--d2.is-visible {
+    animation-delay: 120ms;
+  }
+  .reveal--d3.is-visible {
+    animation-delay: 180ms;
+  }
+  .reveal--d4.is-visible {
+    animation-delay: 240ms;
+  }
+  .reveal--d5.is-visible {
+    animation-delay: 300ms;
+  }
+  .reveal--d6.is-visible {
+    animation-delay: 360ms;
+  }
+
+  .hud-flicker {
+    animation: hud-flicker 7s steps(1, end) infinite;
+  }
+
+  .hud-blip {
+    animation: hud-blip 1.9s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Blanket switch-off. The canvas backdrop checks the same query in JS and
+   * paints a single static frame instead of running its loop. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .reveal,
+  .reveal.is-visible {
+    opacity: 1;
+    animation: none;
+    transform: none;
+  }
+}

@@ -1,26 +1,106 @@
 @import "tailwindcss";
+@import "./hud.css";
+@import "./hud-controls.css";
+@import "./animations.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* Neon-HUD theme.
+ *
+ * Dark only, on purpose: the whole look is emissive — glow, scanlines and thin
+ * neon hairlines only read against a near-black ground, and a light variant
+ * would be a second design rather than an inversion of this one. The
+ * prefers-color-scheme block the starter shipped with is gone for that reason.
+ */
+@theme {
+  --color-hud-bg: #04060c;
+  --color-hud-bg-2: #070c17;
+  --color-hud-panel: #0a1120;
+  --color-hud-line: #17324d;
+  --color-hud-line-soft: #0f2338;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-hud-cyan: #22e0ff;
+  --color-hud-magenta: #ff3ecb;
+  --color-hud-amber: #ffb020;
+  --color-hud-danger: #ff4d6d;
+  --color-hud-ok: #37f5a8;
+
+  --color-hud-ink: #d6e6f5;
+  --color-hud-dim: #7a97b8;
+
+  /* Kept as aliases so `bg-background` / `text-foreground` still resolve. */
+  --color-background: var(--color-hud-bg);
+  --color-foreground: var(--color-hud-ink);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+    /* Drives the drifting grid in the body background and the canvas backdrop. */
+    --hud-grid-size: 46px;
+    /* Pointer-glow origin. Overwritten per panel by usePointerGlow; these
+     * defaults keep the glow centred before the pointer has ever moved. */
+    --glow-x: 50%;
+    --glow-y: 0%;
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
+    /* Dark form controls, scrollbars and selection without styling each one. */
+    color-scheme: dark;
+    accent-color: var(--color-hud-cyan);
+  }
+
+  body {
+    background-color: var(--color-hud-bg);
+    color: var(--color-hud-ink);
+    font-family: var(--font-sans), system-ui, sans-serif;
+
+    /* Two crossed hairline grids, drifting one cell per cycle so the loop is
+     * seamless. This sits under the canvas backdrop and carries the look on
+     * its own if the canvas never mounts. */
+    background-image:
+      repeating-linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--color-hud-cyan) 5%, transparent) 0 1px,
+        transparent 1px var(--hud-grid-size)
+      ),
+      repeating-linear-gradient(
+        to right,
+        color-mix(in srgb, var(--color-hud-cyan) 5%, transparent) 0 1px,
+        transparent 1px var(--hud-grid-size)
+      );
+    animation: hud-grid-drift 12s linear infinite;
+  }
+
+  /* Vignette + scanlines, painted over the page but under nothing clickable. */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    pointer-events: none;
+    background-image:
+      repeating-linear-gradient(
+        to bottom,
+        color-mix(in srgb, #000 22%, transparent) 0 1px,
+        transparent 1px 3px
+      ),
+      radial-gradient(120% 90% at 50% 0%, transparent 40%, color-mix(in srgb, var(--color-hud-bg) 85%, transparent) 100%);
+    opacity: 0.5;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-hud-cyan) 35%, transparent);
+    color: #fff;
+  }
+
+  /* One focus ring for the whole app — neon, and never removed. */
+  :focus-visible {
+    outline: 2px solid var(--color-hud-cyan);
+    outline-offset: 2px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.01em;
+  }
 }

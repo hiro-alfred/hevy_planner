@@ -227,3 +227,19 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   Worth keeping: the `app` service has no `env_file:`, so its environment is
   exactly what `environment:` lists — `.env` reaching compose does not mean it
   reaches the container.
+- 2026-08-08 — **Revamped the UI into a neon-HUD theme** ([[ui-design-system]]):
+  new CSS layer plus six motion components, every page restyled, dark-only by
+  decision rather than by omission. Green checks proved nothing about the look —
+  lint, types, 90 tests and the build all passed while a hover-sweep highlight
+  sat permanently visible on every button and one button stretched full-width.
+  Both were found only by screenshotting the running app, which is now the
+  standard for UI work. Two infrastructure findings worth keeping. (1) Turbopack
+  caches a FAILED `@import` resolution: creating `globals.css` before the
+  `hud.css` it imports left `Can't resolve './hud.css'` surviving a dev-server
+  restart while `next build` succeeded from the same source — clearing `.next`
+  is the fix, and it is the rare case that needs it. (2) A latent `.env`
+  breakage surfaced: a fresh boot dies with `Access denied for user 'hevy'`,
+  though the database and credentials are fine. Next reloads `.env` without
+  re-running `instrumentation.ts`, so the old long-lived server kept a working
+  connection while the file drifted — an app that "still works" is not evidence
+  its config is valid. Recorded as the blocker in [[hot]].

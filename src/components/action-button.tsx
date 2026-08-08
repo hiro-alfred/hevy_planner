@@ -36,7 +36,9 @@ export function ActionButton({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    // items-start so the button keeps its intrinsic width inside a column
+    // layout instead of stretching to the full panel.
+    <div className="flex flex-col items-start gap-2">
       <button type="button" onClick={run} disabled={isPending} className={buttonClasses(tone)}>
         {isPending ? (pendingLabel ?? "Working…") : label}
       </button>

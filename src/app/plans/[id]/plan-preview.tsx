@@ -1,3 +1,4 @@
+import { PointerGlow } from "@/components/pointer-glow";
 import { exerciseSeconds } from "@/lib/planner/prescription";
 import type { Plan, PlanExercise } from "@/lib/planner/schema";
 
@@ -29,29 +30,39 @@ function dayMinutes(exercises: PlanExercise[]): string {
 
 export function PlanPreview({ plan }: { plan: Plan }) {
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       {plan.days.map((day, index) => (
         <section
           key={`${day.title}-${index}`}
-          className="rounded-lg border border-black/10 dark:border-white/15"
+          // Stagger caps at six days, which is also the most Hevy plans have.
+          className={`hud-panel reveal${index < 6 ? ` reveal--d${index + 1}` : ""}`}
         >
-          <header className="flex items-baseline justify-between gap-4 border-b border-black/10 px-4 py-3 dark:border-white/15">
-            <h3 className="font-medium">
-              <span className="opacity-50">Day {index + 1} · </span>
-              {day.title}
+          <PointerGlow />
+          <span className="hud-panel__scan" aria-hidden="true" />
+          <header className="hud-panel__head items-baseline">
+            <h3 className="flex flex-wrap items-baseline gap-2">
+              <span className="hud-mono text-xs tracking-[0.18em] text-hud-cyan uppercase">
+                Day {String(index + 1).padStart(2, "0")}
+              </span>
+              <span className="font-medium tracking-wide uppercase">{day.title}</span>
             </h3>
-            <span className="text-xs opacity-60">
-              {day.exercises.length} exercises · ~{dayMinutes(day.exercises)}
+            <span className="hud-mono shrink-0 text-xs text-hud-dim">
+              {day.exercises.length} ex · ~{dayMinutes(day.exercises)}
             </span>
           </header>
-          <ol className="divide-y divide-black/5 dark:divide-white/10">
+          <ol className="divide-y divide-hud-line-soft">
             {day.exercises.map((exercise, exerciseIndex) => (
               <li
                 key={`${exercise.exerciseTemplateId}-${exerciseIndex}`}
-                className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-2.5"
+                className="hud-row py-2.5"
               >
-                <span className="text-sm">{exercise.name}</span>
-                <span className="text-xs opacity-70">
+                <span className="flex items-baseline gap-3 text-sm">
+                  <span className="hud-mono text-[0.625rem] text-hud-dim">
+                    {String(exerciseIndex + 1).padStart(2, "0")}
+                  </span>
+                  {exercise.name}
+                </span>
+                <span className="hud-mono text-xs text-hud-dim">
                   {describeSets(exercise)} · {exercise.restSeconds}s rest
                 </span>
               </li>
