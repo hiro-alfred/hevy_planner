@@ -35,8 +35,13 @@ first — everything else depends on the cached catalog).
   (schema + client), `src/lib/planner/schema.ts` (plan Zod model),
   `src/lib/hevy/` (typed client; catalog/sync as throwing stubs),
   `src/lib/planner/generate.ts` (stub), `drizzle.config.ts`, `.env.example`.
-- `npm run build`, `npm run lint`, wiki tests: all green. No drizzle migrations
-  generated yet; default create-next-app home page still in place.
+- DB wiring DONE: initial migration in `drizzle/` (`npm run db:generate` for
+  future schema changes), auto-applied on every server boot via
+  `src/instrumentation.ts` → `src/lib/db/migrate.ts` — no manual step. Cold-boot
+  verified: fresh `npm start` creates data/hevy-planner.sqlite with all tables.
+  `requirements.txt` added (pytest only; app deps stay in package.json).
+- `npm run build`, `npm run lint`, wiki tests: all green. Default
+  create-next-app home page still in place.
 
 ## Open questions / dissents
 - LLM provider undecided → generate.ts stays a stub until picked (then add the
@@ -44,9 +49,8 @@ first — everything else depends on the cached catalog).
 - VPS vendor undecided; decision deferred until first deploy.
 
 ## Next steps
-1. `npx drizzle-kit generate` + migration runner wired into app startup.
-2. Implement catalog refresh + candidate filtering (`src/lib/hevy/catalog.ts`).
-3. Settings page + server action for Hevy key entry (masked display, never echoed).
-4. Then: plan request form → generate (needs provider choice) → preview → sync.
-5. Set `output: 'standalone'` in next.config.ts + Dockerfile when deploy nears.
-6. Still pending from bootstrap: lint pass of bootstrap pages against the repo.
+1. Implement catalog refresh + candidate filtering (`src/lib/hevy/catalog.ts`).
+2. Settings page + server action for Hevy key entry (masked display, never echoed).
+3. Then: plan request form → generate (needs provider choice) → preview → sync.
+4. Set `output: 'standalone'` in next.config.ts + Dockerfile when deploy nears.
+5. Still pending from bootstrap: lint pass of bootstrap pages against the repo.
