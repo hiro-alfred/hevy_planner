@@ -29,7 +29,8 @@ no blockers, findings folded into milestone 2.
 **DONE: milestone 2** (settings + key handling, fbe29d5 — [[key-handling]]);
 reviewed, one important key-leak finding fixed in milestone 3.
 **DONE: milestone 3** (plan flow — [[plan-generation]], [[hevy-sync]]).
-**NEXT: milestone 4** — replace the create-next-app home page with a dashboard.
+**DONE: milestone 4** (dashboard home page).
+**NEXT: milestone 5** — lint/cleanup pass over the bootstrap pages.
 
 ## State reached
 - Work happens on git worktree branch `worktree-e2e-build`, branched from `dev` at

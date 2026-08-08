@@ -40,6 +40,25 @@ This runs the real migrations against a real SQLite file, so the tests exercise
 actual SQL (which is how the ORDER BY trap in [[catalog-service]] surfaced).
 Network boundaries are stubbed instead — a fake `HevyClient` serving fixed pages.
 
+## What `npm run build` does NOT catch
+
+A green build is not a working page. Two classes of failure have already slipped
+through it, so every page gets loaded from a running server before a milestone
+is called done:
+
+- **Calling a function exported from a `"use client"` module in a server
+  component.** It type-checks and builds, then throws at request time:
+  *"Attempted to call buttonClasses() from the server but buttonClasses is on
+  the client."* A client module's exports can be rendered as components or
+  passed as props, not called. Shared helpers therefore live in a plain module
+  (`src/components/button-styles.ts`), not beside the client component that
+  happens to use them.
+- **Anything behind a server action or a live DB read**, since the build only
+  renders what it can prerender.
+
+The verification that catches these is a `curl` per route against `next start`,
+including one deliberately-missing id to confirm the 404 path.
+
 > [!warning] Installing on Windows without a Windows SDK
 > `npm install` tries to compile better-sqlite3 from source and fails at
 > `node-gyp` (VS2019 present, no Windows SDK). The package **ships prebuilt

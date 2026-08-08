@@ -63,3 +63,9 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   the design (dropping the last set's rest), and an exercise-only cap made every
   60+ minute session fail its own validation. 54 vitest tests; verified against
   a running server with a seeded 192-exercise catalog (4-day plan, 0 violations).
+- 2026-08-08 — milestone 4 (dashboard): create-next-app home page replaced with
+  a plans list (status + synced-routine count via one grouped join) and a
+  setup checklist. Caught a runtime-only bug the build passes: a server
+  component cannot CALL a function exported from a `"use client"` module —
+  `buttonClasses` moved to `src/components/button-styles.ts`. Noted in
+  [[testing-setup]]; every route now curl-checked against `next start`.

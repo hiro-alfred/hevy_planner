@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { buttonClasses } from "@/components/action-button";
+import { buttonClasses } from "@/components/button-styles";
 import { ActionMessage } from "@/components/action-message";
 import { IDLE } from "@/lib/action-state";
 import { DEFAULT_EQUIPMENT, EQUIPMENT_CATEGORIES, EQUIPMENT_LABELS } from "@/lib/hevy/constants";
