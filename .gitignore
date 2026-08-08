@@ -5,3 +5,17 @@ __pycache__/
 .env
 .env.local
 .env*.local
+
+# Node / Next.js
+/node_modules
+/coverage
+/.next/
+/out/
+/build
+npm-debug.log*
+*.tsbuildinfo
+*.pem
+.DS_Store
+
+# SQLite database (runtime data, not source)
+/data/
