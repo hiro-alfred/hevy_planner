@@ -95,3 +95,15 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   server in the image's file layout: migrations applied to a fresh DB and all
   pages served. Found that standalone binds the machine hostname unless
   `HOSTNAME` is set — the container would be unreachable without it.
+- 2026-08-08 — sync-fix review (Fable, 1fdb910): both fixes confirmed genuine,
+  migration verified against populated pre-migration DBs. It also caught that
+  the concurrency claim was HALF WRONG — `UNIQUE(plan_id, day_index)` fires only
+  after the duplicate routine already exists in Hevy, so it guards the database,
+  not Hevy. Closed with a per-plan lock (`lib/hevy/plan-lock.ts`) making
+  read-decide-write one critical section; a test firing two syncs at once fails
+  on that very constraint when the lock is removed. Also: migration 0001 now
+  dedups `sync_links` before creating the index (a DB already holding duplicates
+  would otherwise fail the migration on every boot and brick the app — verified
+  with a duplicate-row fixture), syncing a deleted plan is refused instead of
+  stranding a folder, and the pre-migration folder id is backfilled onto the
+  plan row. Lost-response duplication documented as a known gap in [[hevy-sync]].

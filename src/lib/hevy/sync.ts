@@ -6,6 +6,7 @@ import { UserFacingError } from "@/lib/errors";
 import type { Plan } from "@/lib/planner/schema";
 import { dayToRoutine, routineHash } from "@/lib/planner/to-hevy";
 import type { HevyClient } from "./client";
+import { withPlanLock } from "./plan-lock";
 
 // Stage 4 of the pipeline: push a plan to Hevy.
 //
@@ -35,7 +36,17 @@ export function planFolderTitle(plan: Plan): string {
  * a retry resumes. A 403 from create means the routine limit is exhausted and
  * must reach the user; retrying it would never succeed.
  */
-export async function syncPlan(
+export function syncPlan(
+  client: HevyClient,
+  planId: number,
+  plan: Plan,
+): Promise<SyncSummary> {
+  // The whole read-decide-write sequence is one critical section: see
+  // plan-lock.ts for why guarding the database alone is not enough.
+  return withPlanLock(planId, () => runSync(client, planId, plan));
+}
+
+async function runSync(
   client: HevyClient,
   planId: number,
   plan: Plan,
@@ -65,10 +76,25 @@ export async function syncPlan(
     .where(eq(plans.id, planId))
     .limit(1);
 
-  let folderId = planRow?.hevyFolderId ?? existing[0]?.hevyFolderId ?? null;
+  // The plan was deleted between the action loading it and this write. Creating
+  // a folder now would strand it in Hevy forever, attached to nothing.
+  if (!planRow) {
+    throw new UserFacingError("This plan no longer exists, so it was not synced.");
+  }
+
+  let folderId = planRow.hevyFolderId ?? null;
+
+  if (folderId === null && existing.length > 0) {
+    // A plan synced before the folder id moved onto the plans row. Backfill it
+    // from a link so this plan gets the same protection as a new one.
+    folderId = existing[0]!.hevyFolderId;
+    await db.update(plans).set({ hevyFolderId: folderId }).where(eq(plans.id, planId));
+  }
+
   if (folderId === null) {
     const { routine_folder } = await client.createRoutineFolder(planFolderTitle(plan));
     folderId = routine_folder.id;
+    // Recorded BEFORE any routine write, so a failure below cannot lose it.
     await db.update(plans).set({ hevyFolderId: folderId }).where(eq(plans.id, planId));
   }
 

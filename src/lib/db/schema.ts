@@ -58,8 +58,10 @@ export const syncLinks = sqliteTable(
     contentHash: text("content_hash").notNull(),
     lastSyncedAt: text("last_synced_at").notNull(),
   },
-  // A day may be linked to exactly one routine. Two concurrent first syncs
-  // would otherwise both create routines and leave permanent duplicates in
-  // Hevy; here the second insert fails loudly instead.
+  // A day may be linked to exactly one routine, so a corrupted link table can
+  // never make a later sync PUT the wrong routine. Note what this does NOT do:
+  // it fires only after a duplicate routine already exists in Hevy, so it
+  // protects the database, not Hevy. Preventing the duplicate write itself is
+  // the job of the lock in lib/hevy/plan-lock.ts.
   (table) => [uniqueIndex("sync_links_plan_day").on(table.planId, table.dayIndex)],
 );

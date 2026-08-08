@@ -27,8 +27,10 @@ LLM anywhere near the write path.
   the first API call: an empty routine would permanently consume part of the
   routine cap for something useless. Generation refuses earlier still — any
   training day with zero candidates aborts the whole request.
-- **`UNIQUE(plan_id, day_index)`** on `sync_links`, so two concurrent first
-  syncs cannot both link the same day and leave duplicate routines behind.
+- **One sync at a time per plan** (`lib/hevy/plan-lock.ts`). Runs queue rather
+  than fail, so the second one simply finds every day already linked.
+- **`UNIQUE(plan_id, day_index)`** on `sync_links` as the backstop underneath
+  that lock.
 - **Create once, then PUT.** A day with no link is created; a day with a link is
   PUT full-replace against the stored routine id.
 - **Ids are recorded as each create returns**, not batched at the end. A sync
@@ -52,6 +54,18 @@ LLM anywhere near the write path.
 > The general shape of the bug is worth remembering: **state recorded only as a
 > side effect of a later step is lost whenever that step fails.**
 
+> [!warning] A unique index protects the database, not Hevy
+> `UNIQUE(plan_id, day_index)` was added believing it stopped concurrent syncs
+> from duplicating routines. It does not: it rejects the second **link row**,
+> which happens only after the second **routine** already exists in Hevy — and
+> that routine can never be deleted. The decision and the write have to be one
+> critical section, which is what `withPlanLock` provides. Pinned by a test
+> that fires two syncs at once; with the lock removed it fails on exactly that
+> unique constraint, which is the duplicate-write it was supposed to prevent.
+>
+> Generally: a database constraint cannot undo an external side effect that
+> already happened.
+
 ## What the hash covers
 
 `routineHash` in `to-hevy.ts` hashes the **routine payload**, not the plan day.
@@ -68,6 +82,15 @@ explicit nulls is safer than omitting them. Rest lives on the exercise, not the
 set. Sets always carry `rep_range` and a null `reps`. `superset_id` is null
 throughout (no supersets in phase 1); if routines are ever read back, the
 `superset_id` / `supersets_id` quirk from [[hevy-api]] must be normalised here.
+
+## Known gap: a lost response still duplicates
+
+If `POST /v1/routines` (or the folder create) succeeds on Hevy's side but the
+response never arrives — a timeout — no id is recorded and the retry creates a
+second permanent object. Closing this needs a reconcile-by-title read before
+creating; `GET` endpoints exist for both routines and folders ([[hevy-api]]), so
+it is possible, just not built. Unlike the fixed bugs, this one needs a network
+failure at exactly the wrong moment.
 
 ## Known gap: routines the plan no longer wants
 

@@ -172,6 +172,34 @@ describe("failure mid-sync", () => {
     expect(retry.creates).toEqual(["Push", "Pull"]);
   });
 
+  /**
+   * Plans synced before the folder id moved onto the plans row have it only on
+   * their sync_links rows. They must keep working, and must get backfilled so
+   * they gain the same protection as a new plan.
+   */
+  it("adopts the folder id of a plan synced before the column existed", async () => {
+    const { db } = await import("@/lib/db/client");
+    const { plans } = await import("@/lib/db/schema");
+    const { eq } = await import("drizzle-orm");
+
+    await sync.syncPlan(recorder().client, planId, plan());
+    // Simulate the pre-migration state: links carry the folder, the plan doesn't.
+    await db.update(plans).set({ hevyFolderId: null }).where(eq(plans.id, planId));
+
+    const edited = plan();
+    edited.days[0]!.exercises[0]!.restSeconds = 150;
+    const rec = recorder();
+    await sync.syncPlan(rec.client, planId, edited);
+
+    expect(rec.folders).toEqual([]);
+    expect(rec.creates).toEqual([]);
+    const [row] = await db
+      .select({ hevyFolderId: plans.hevyFolderId })
+      .from(plans)
+      .where(eq(plans.id, planId));
+    expect(row!.hevyFolderId).not.toBeNull();
+  });
+
   it("keeps what it created, so a retry resumes instead of duplicating", async () => {
     const failing = recorder({ failOnCreate: 2 });
     await expect(sync.syncPlan(failing.client, planId, plan())).rejects.toThrow(HevyApiError);
@@ -193,6 +221,31 @@ describe("failure mid-sync", () => {
       status: 403,
     });
     expect(capped.creates).toEqual([]);
+  });
+});
+
+describe("concurrent syncs", () => {
+  /**
+   * Two tabs, or a double-click that outran the disabled button. Both runs read
+   * "nothing synced yet" before either writes, so without serialisation both
+   * create a folder and a routine — and Hevy cannot delete either. The UNIQUE
+   * index alone does not help: it rejects the second link row only after the
+   * duplicate routine already exists in Hevy.
+   */
+  it("never double-writes to Hevy when two syncs start at once", async () => {
+    const a = recorder();
+    const b = recorder();
+
+    const [first, second] = await Promise.all([
+      sync.syncPlan(a.client, planId, plan()),
+      sync.syncPlan(b.client, planId, plan()),
+    ]);
+
+    expect([...a.folders, ...b.folders]).toHaveLength(1);
+    expect([...a.creates, ...b.creates].sort()).toEqual(["Pull", "Push"]);
+    // The one that ran second finds everything already linked.
+    expect(first.created + second.created).toBe(2);
+    expect(first.unchanged + second.unchanged).toBe(2);
   });
 });
 
