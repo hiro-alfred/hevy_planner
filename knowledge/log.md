@@ -28,3 +28,10 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   questions answered. Next.js scaffold merged (create-next-app + npm), Drizzle
   schema + planner Zod schema + thin Hevy client written, catalog/sync/generate
   left as documented stubs. Build + lint + wiki tests green.
+- 2026-08-08 — milestone 1 (catalog): `src/lib/hevy/catalog.ts` implemented
+  (fetch-then-write refresh, single-transaction upsert + prune, one-query
+  candidate filter incl. json_each secondary-muscle match), spec enums extracted
+  to `constants.ts`. vitest added as the app-side runner ([[testing-setup]]);
+  13 tests caught two real bugs (bare `0` in ORDER BY read as a column ordinal;
+  Windows SQLite file lock). New [[catalog-service]] page. Build, lint, vitest,
+  wiki tests green.

@@ -40,6 +40,10 @@ category. Start here; conventions live in [[schema]].
   setup steps.
 - [[wiki-enforcement]] — the lint test and the read-guard hook that keep the vault
   honest.
+- [[catalog-service]] — the local exercise-template cache: refresh contract,
+  one-query candidate filtering, SQLite traps.
+- [[testing-setup]] — vitest for app logic, pytest for the vault; how to test
+  DB-backed modules and the Windows install flag.
 
 ## decisions/
 
