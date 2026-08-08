@@ -1,2 +1,7 @@
 knowledge/.obsidian/
 __pycache__/
+
+# Environment variables (secrets) — .env.example stays committed
+.env
+.env.local
+.env*.local

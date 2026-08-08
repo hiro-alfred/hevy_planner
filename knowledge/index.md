@@ -41,5 +41,7 @@ category. Start here; conventions live in [[schema]].
 
 ## decisions/
 
+- [[product-architecture]] — 2026-08-08 stack decisions: Next.js full-stack (not
+  WordPress), personal-first, provider-agnostic LLM, in-app Hevy key entry.
 - [[wiki-bootstrap]] — choices made at vault creation: categories, re-authored
   skills, thin bootstrap.

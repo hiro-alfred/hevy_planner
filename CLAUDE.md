@@ -19,3 +19,15 @@ nothing — neither means it is missing).
 - Author per the **obsidian-markdown skill** + knowledge/schema.md; no orphans (enforced by
   tests/test_knowledge_wiki.py). Docs and code stay the source of truth — a conflicting
   wiki page is stale; fix the wiki and log it.
+
+## Code standards
+- No file should surpass 300 lines of code.
+- No N+1 query problems.
+- No inline JS or CSS.
+
+## Permissions
+- Git is fully allowed without asking: commit, push, merge, branch, and other git
+  operations may be performed autonomously when they serve the task.
+- STRICT: NEVER read the `.env` file — not with Read/Grep, nor indirectly via shell
+  commands (`cat`, `type`, `Get-Content`, echoing vars, etc.). Its values must never
+  enter the conversation. `.env.example` is the only place env vars are documented.

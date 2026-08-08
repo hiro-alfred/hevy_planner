@@ -16,3 +16,7 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
 
 - 2026-08-08 — bootstrap: vault created; specials plus 6 initial pages synthesized
   from the repo (see [[wiki-bootstrap]] for decisions made). Wiki test passing.
+- 2026-08-08 — design session: architecture decided with owner and recorded in
+  [[product-architecture]]; README.md rewritten as the design doc (via Sonnet
+  subagent), CLAUDE.md gained code standards, .gitignore now covers .env.
+  [[project-overview]] updated (product vision no longer UNVERIFIED).

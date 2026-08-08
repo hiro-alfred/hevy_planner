@@ -16,13 +16,28 @@ latest state. History belongs in [[log]] — this page holds only the CURRENT st
 Keep the four sections below; they are the template.
 
 ## Active task
-(none yet — vault just bootstrapped)
+Design phase COMPLETE ([[product-architecture]]); implementation not started. Next
+milestone: scaffold the Next.js app.
 
 ## State reached
-Vault created; initial pages synthesized from the repo.
+- Architecture decided with the owner: Next.js full-stack (TypeScript), personal
+  single-user first, provider-agnostic LLM layer, Hevy API key entered in-app
+  (settings page, server-side storage) with `.env` `HEVY_API_KEY` as optional
+  fallback. Rationale in [[product-architecture]].
+- `README.md` rewritten as the full design doc (written by a Sonnet subagent, owner
+  reviewed the direction).
+- `CLAUDE.md` gained a Code standards section: ≤300 lines of code per file, no N+1
+  queries, no inline JS/CSS.
+- `.gitignore` now ignores `.env`, `.env.local`, `.env*.local`.
+- Nothing committed this session; working tree carries all the above changes.
 
 ## Open questions / dissents
-(none)
+- LLM provider deliberately undecided (abstraction via `LLM_PROVIDER`/`LLM_API_KEY`).
+- Storage mechanism for the in-app Hevy key (file vs DB vs encrypted store) not yet
+  chosen.
 
 ## Next steps
-1. Review the bootstrap pages against the code for stale claims (first lint pass).
+1. Scaffold the app: `create-next-app` (TypeScript), add `.env.example`.
+2. Stub the two core services: plan generation (LLM abstraction) and Hevy sync.
+3. Build the settings page + server-side route for Hevy key entry/storage.
+4. Still pending from bootstrap: lint pass of bootstrap pages against the repo.
