@@ -27,8 +27,10 @@ category. Start here; conventions live in [[schema]].
 
 ## concepts/
 
-- [[hevy-platform]] — the Hevy app and its public API as the likely integration
-  surface (UNVERIFIED domain context).
+- [[hevy-platform]] — the Hevy app and its public API as the integration surface
+  (domain context; API sketch superseded by [[hevy-api]] where they differ).
+- [[hevy-api]] — VERIFIED API surface from the pinned OpenAPI spec
+  (docs/hevy-openapi.json): write schema, no-DELETE, traps.
 - [[llm-wiki-pattern]] — the Karpathy-style persistent synthesis layer this vault
   implements.
 
@@ -42,6 +44,9 @@ category. Start here; conventions live in [[schema]].
 ## decisions/
 
 - [[product-architecture]] — 2026-08-08 stack decisions: Next.js full-stack (not
-  WordPress), personal-first, provider-agnostic LLM, in-app Hevy key entry.
+  WordPress), personal-first, AI-SDK LLM layer, in-app Hevy key entry, self-hosted
+  persistent server (not serverless), SQLite + Drizzle.
+- [[plan-pipeline]] — round-2 core-flow design: 4-stage pipeline, JSON plan doc +
+  sync_links, create-once-then-PUT sync, minimal-plus editing, kg-only units.
 - [[wiki-bootstrap]] — choices made at vault creation: categories, re-authored
   skills, thin bootstrap.

@@ -16,28 +16,32 @@ latest state. History belongs in [[log]] — this page holds only the CURRENT st
 Keep the four sections below; they are the template.
 
 ## Active task
-Design phase COMPLETE ([[product-architecture]]); implementation not started. Next
-milestone: scaffold the Next.js app.
+MID-SESSION CHECKPOINT (work in progress, not a wrap-up). Architecture round 2 done
+with the owner; now recording decisions into wiki/README, then scaffolding the
+Next.js app. If this session died mid-way, the wiki pages below may be
+half-written and the scaffold absent or uncommitted — re-verify before trusting.
 
 ## State reached
-- Architecture decided with the owner: Next.js full-stack (TypeScript), personal
-  single-user first, provider-agnostic LLM layer, Hevy API key entered in-app
-  (settings page, server-side storage) with `.env` `HEVY_API_KEY` as optional
-  fallback. Rationale in [[product-architecture]].
-- `README.md` rewritten as the full design doc (written by a Sonnet subagent, owner
-  reviewed the direction).
-- `CLAUDE.md` gained a Code standards section: ≤300 lines of code per file, no N+1
-  queries, no inline JS/CSS.
-- `.gitignore` now ignores `.env`, `.env.local`, `.env*.local`.
-- Nothing committed this session; working tree carries all the above changes.
+- Hevy API spec VERIFIED (Opus subagent read https://api.hevyapp.com/docs/); full
+  OpenAPI spec pinned at `docs/hevy-openapi.json`. Key facts: rep ranges supported,
+  no DELETE endpoints, routine limit 403, no catalog search (must cache), kg only,
+  PUT = full replace. Being recorded in [[hevy-api]].
+- New decisions with owner: self-hosted persistent server (vendor TBD, budget VPS,
+  NOT Vercel/serverless); SQLite + Drizzle; Vercel AI SDK for LLM abstraction;
+  create-then-PUT sync model; plan stored as JSON doc + normalized sync_links;
+  minimal-plus edit scope; Hevy key plaintext in settings table; kg default unit
+  (kg internal everywhere, lbs display-only opt-in). Being recorded in
+  [[plan-pipeline]] and [[product-architecture]].
 
 ## Open questions / dissents
-- LLM provider deliberately undecided (abstraction via `LLM_PROVIDER`/`LLM_API_KEY`).
-- Storage mechanism for the in-app Hevy key (file vs DB vs encrypted store) not yet
-  chosen.
+- LLM provider still deliberately undecided (via AI SDK).
+- VPS vendor undecided (netcup likely); deploy = Docker + Next standalone output.
 
 ## Next steps
-1. Scaffold the app: `create-next-app` (TypeScript), add `.env.example`.
-2. Stub the two core services: plan generation (LLM abstraction) and Hevy sync.
-3. Build the settings page + server-side route for Hevy key entry/storage.
-4. Still pending from bootstrap: lint pass of bootstrap pages against the repo.
+1. Finish wiki pages: [[hevy-api]], [[plan-pipeline]], update
+   [[product-architecture]], [[hevy-platform]], index.
+2. Update README.md (hosting, stack table, sync model, kg).
+3. Commit docs; then scaffold `create-next-app` (TypeScript, npm), add
+   `.env.example`, Drizzle, plan Zod schema, hevy/planner service stubs.
+4. Verify: `npm run build`, wiki tests (tests/test_knowledge_wiki.py).
+5. Still pending from bootstrap: lint pass of bootstrap pages against the repo.

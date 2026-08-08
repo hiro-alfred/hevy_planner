@@ -3,10 +3,8 @@
 A web dashboard that builds personalized workout plans and pushes them straight into
 [Hevy](https://www.hevy.com) — the workout tracking app — via Hevy's official API.
 
-> **Status: greenfield.** This repository currently contains no application code. This
-> README describes the agreed product and technical design that implementation will
-> follow. Sections describing the tech stack, architecture, and configuration are the
-> **plan**, not a description of what exists today.
+> **Status: early scaffold.** The design below is agreed and the Next.js scaffold with
+> stubbed services exists; the product features themselves are not implemented yet.
 
 ## Overview
 
@@ -41,12 +39,26 @@ Pro-only capability.
   never reach the client. The Hevy API key can be submitted through a dashboard
   settings page, which posts it to a server-side API route for server-side
   storage/use only.
-- **Plan generation service** — an internal abstraction that turns structured user
-  input into a structured workout plan by calling out to a configured LLM provider.
-- **Hevy sync service** — converts a generated plan into Hevy routine payloads and
-  calls the Hevy API to create/update routines in the user's account.
-- **Deployment** — designed to deploy to Vercel or an equivalent platform; no
-  infrastructure has been provisioned yet.
+- **Plan generation service** — turns structured user input into a structured workout
+  plan via the Vercel AI SDK (provider-agnostic, Zod-validated structured output,
+  streamed so the preview fills in progressively). Exercises are constrained to
+  Hevy's real exercise-template catalog, cached locally, and validated after
+  generation (ids resolve, day count matches, session length is plausible).
+- **Hevy sync service** — converts a plan into Hevy routine payloads and pushes them.
+  Sync is **create-once-then-update**: one routine folder per plan, one routine per
+  training day, created on first sync with their Hevy ids recorded; later syncs
+  `PUT`-replace those routines. (The Hevy API has no DELETE and a routine cap, so
+  creating anew each time is not viable.) Syncing is always an explicit user action
+  after preview — never automatic.
+- **Storage** — SQLite (via Drizzle) on local disk: settings (including the Hevy
+  key), exercise-template catalog cache, plan history, synced routine ids. All
+  weights are stored and synced in **kg** (the API's only unit); pounds are a
+  display-only preference.
+- **Deployment** — self-hosted on a persistent Linux server (budget VPS or a
+  Raspberry Pi), not serverless: the app is a long-running Node process built with
+  Next `output: 'standalone'` and shipped as a Docker container next to a volume.
+  Until multi-user auth exists, public exposure should sit behind an external gate
+  (e.g. Cloudflare Access). No infrastructure has been provisioned yet.
 - **Mobile** — not part of the initial build. A PWA or React Native path is a possible
   future direction, not a current commitment.
 
@@ -55,13 +67,11 @@ Pro-only capability.
 | Layer | Choice |
 |---|---|
 | Framework | Next.js (TypeScript, React) |
-| API layer | Next.js API routes (server-side only) |
-| Workout data | Hevy API (requires Hevy Pro API key) |
-| Plan generation | LLM behind a provider-agnostic abstraction |
-| Deployment target | Vercel or similar |
-
-No package.json, dependency choices, or scaffolding exist yet — this table reflects the
-agreed direction, to be filled in as implementation starts.
+| API layer | Next.js route handlers + server actions (server-side only) |
+| Database | SQLite + Drizzle ORM |
+| Workout data | Hevy API (requires Hevy Pro API key; spec pinned at `docs/hevy-openapi.json`) |
+| Plan generation | Vercel AI SDK (provider-agnostic; Zod structured output) |
+| Deployment target | Self-hosted persistent server (budget VPS / Raspberry Pi), Docker + Next standalone |
 
 ## Configuration
 
@@ -70,16 +80,17 @@ user pastes their key there, it is submitted to a server-side API route, and sto
 server-side only — it is never exposed back to the browser or used client-side.
 
 `.env` remains available for local/deployment-level configuration and is **never
-committed**. A `.env.example` file documents the expected variables (to be added
-alongside the first implementation).
-
-Expected environment variables:
+committed**. `.env.example` documents the expected variables:
 
 | Variable | Purpose |
 |---|---|
 | `HEVY_API_KEY` | *(optional)* Hevy Pro API key used as a fallback/default when none has been entered via the settings page |
 | `LLM_PROVIDER` | Selects which LLM provider the plan generator calls |
 | `LLM_API_KEY` | API key for the configured LLM provider |
+| `DATABASE_PATH` | *(optional)* Path of the SQLite database file (defaults to `./data/hevy-planner.sqlite`) |
+
+Weights are handled in **kg by default** (Hevy's API is kg-only); a display-only
+lbs preference is planned in settings.
 
 In the initial phase this is a **personal, single-user tool**: the app has no
 login/auth system yet, but the owner can still set their Hevy key through the in-app
@@ -89,11 +100,15 @@ well, instead of `.env`.
 
 ## Repository structure
 
+- `src/` — the Next.js app: `app/` (pages, route handlers), `lib/db/` (Drizzle
+  schema + client), `lib/hevy/` (API client, catalog cache, sync service),
+  `lib/planner/` (plan schema, candidate filtering, generation).
+- `docs/hevy-openapi.json` — pinned copy of the official Hevy OpenAPI spec that the
+  client types are checked against.
 - `knowledge/` — an internal Obsidian-vault knowledge wiki used by AI coding agents
   working in this repo (a synthesis layer over `CLAUDE.md` and docs, per the Karpathy
   LLM-wiki pattern). It is developer/agent tooling, not part of the product; the code
   and docs remain the source of truth.
-- Application source does not exist yet.
 
 ## Repository conventions
 
