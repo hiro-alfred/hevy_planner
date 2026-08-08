@@ -16,69 +16,75 @@ latest state. History belongs in [[log]] — this page holds only the CURRENT st
 Keep the four sections below; they are the template.
 
 ## Active task
-Storage moved from SQLite to **MariaDB** at the owner's request
-([[mariadb-migration]]) and now **verified end to end locally**: 63/63 tests
-against a real server, all routes answering, boot migration applied. The
-container path (`docker compose up`) is the remaining unproven piece.
+The app **runs locally and works** against real MariaDB and the real Hevy API.
+`dev` @ `7bce793`, tree clean, pushed. Two stages remain unexercised: **LLM
+generation** (no key configured) and **sync to Hevy** (never written to the live
+account). Everything else in the pipeline has been run for real.
 
 ## State reached
-- `worktree-e2e-build` (8 commits: catalog, settings, plan flow, dashboard, sync
-  fixes, Docker, plan lock) fast-forward **merged into `dev`** first, so the
-  conversion happened once against the full app instead of twice.
-- MariaDB conversion complete: `mysql2` replaces `better-sqlite3`,
-  `drizzle-orm/mysql-core` schema (varchar PKs, `mysqlEnum`, `boolean`,
-  ISO-8601 `varchar(32)` timestamps), pooled async client, single squashed
-  `drizzle/0000_brainy_chat.sql`. Per-dialect fixes and their reasons are
-  tabulated in [[mariadb-migration]].
-- `src/lib/db/json-column.ts` is load-bearing: drizzle's mysql `json()` has no
-  `mapFromDriverValue`, and MariaDB reports JSON as LONGTEXT, so every JSON
-  column would silently return an unparsed string. Do not "simplify" it away.
-- Boot migration now retries transient connect errors for 60s
-  ([[deployment]]) — compose `depends_on` alone does not cover restarts.
-- Two compose files: `docker-compose.yml` (app + db, no published DB port) and
-  `docker-compose.test.yml` (tmpfs MariaDB on 3307). Tests take a database per
-  file via `src/test/database.ts` ([[testing-setup]]).
-- Green: `npm run build` incl. TypeScript, `npm run lint` (also fixed eslint
-  linting nested worktree `.next/` output), `drizzle-kit generate`. 63 tests
-  were green on SQLite immediately before the change.
+- **MariaDB replaced SQLite** ([[mariadb-migration]]) after merging the
+  `worktree-e2e-build` branch into `dev`, so the conversion happened once
+  against the full app. Verified end to end: 90 tests green against a real
+  server, boot migration builds all tables, every route answers.
+- **Catalog works against the live API**: 452 templates cached, all 9 equipment
+  categories. Two spec-vs-reality bugs fixed — the API sends `equipment`, not
+  the spec's `equipment_category`, and the rep-based type list had been guessed
+  wrong. Both are traps in [[hevy-api]]; the second had been silently excluding
+  every assisted pull-up and weighted dip from candidates.
+- **Hevy key is encrypted at rest** (AES-256-GCM, [[key-handling]]), reversing
+  the old plaintext decision because the MariaDB move made database-only
+  compromise a real event. The existing key was upgraded in place at boot.
+- **DeepSeek wired as the LLM provider** ([[plan-generation]]), default
+  `deepseek-v4-pro`. Not yet exercised — no key configured.
+- Green: `npm run build` incl. TypeScript, `npm run lint`, 90 vitest tests,
+  14 wiki tests.
 
 ## Open questions / dissents
-- **Correction on the record:** the original justification for
-  `src/lib/db/json-column.ts` — that mysql2 returns MariaDB JSON unparsed —
-  did NOT reproduce. Measured: column type 252 (LONGTEXT, as predicted) but
-  mysql2 3.23.2 parses it anyway via MariaDB 10.5+ extended metadata, on both
-  protocols. Drizzle's built-in `json()` would have worked here. The custom
-  column is kept as version-independence, not as a fix; comments, wiki and log
-  corrected.
-- **Still unverified: the container path.** No Docker daemon here (firmware
-  virtualization is available, WSL2 has no distro), so `compose up`, the
-  healthcheck ordering, and the boot-migration retry are untested. Local dev
-  runs MariaDB 12.3 natively while the compose files pin 11.4 LTS.
-- Ops cost was flagged to the owner before starting (second container, tests now
-  need a server) and the change was confirmed anyway. Recorded, not re-litigated.
-- LLM provider PICKED: **DeepSeek** (`deepseek-v4-pro` default). Wiring is in;
-  still needs the owner's `LLM_API_KEY` in `.env` and one real generation to
-  prove it. VPS vendor still undecided.
-- `data/` still holds the old SQLite file. Left in place and gitignored because
-  it may contain a stored Hevy key — the owner should delete it by hand.
-- Leftover worktree at `.claude/worktrees/e2e-build` is now fully merged and
-  redundant; safe to `git worktree remove`.
-- Port 3000 was occupied by another process, so `npm run dev` served 3001.
+- **Unproven: LLM generation.** No `LLM_API_KEY`, so every plan so far came from
+  the deterministic rule-based generator. Also note `@ai-sdk/deepseek` does not
+  set `supportsStructuredOutputs`, so `generateObject` runs in `json_object`
+  mode, which DeepSeek documents as occasionally returning empty content —
+  expect the odd silent fallback to rules and check `source` before judging it.
+- **Unproven: the live Hevy write path.** Sync has only ever run against a stub.
+  It is irreversible — no DELETE endpoint and a routine cap ([[hevy-api]]) — so
+  the first real sync must be a 2-day plan, not a 6-day split.
+- **Unproven: the container path.** No Docker daemon on this machine (firmware
+  virtualization is on, WSL2 has no distro), so `docker compose up`, the
+  `depends_on` healthcheck ordering and the boot-migration retry are
+  reasoned-about only ([[deployment]]). Local runs MariaDB 12.3 native; the
+  compose files pin 11.4 LTS.
+- **`data/` still holds the pre-migration SQLite file, which likely contains the
+  Hevy key IN PLAINTEXT.** This partly defeats [[key-handling]]. Gitignored, not
+  deleted — it is the owner's data and their call. Flagged twice; still there.
+- Correction kept on the record: the original justification for
+  `src/lib/db/json-column.ts` (that mysql2 returns MariaDB JSON unparsed) did
+  NOT reproduce — mysql2 3.23.2 parses it via MariaDB 10.5+ extended metadata.
+  The file is kept as version-independence, not as a fix for a live bug.
+- Hosting undecided (netcup leaning). No backup story yet; losing `sync_links`
+  is the expensive failure, because re-sync would then create DUPLICATE Hevy
+  routines that cannot be deleted.
+- `.claude/worktrees/e2e-build` is fully merged and redundant; safe to
+  `git worktree remove`.
 
 ## Local dev setup (this machine)
-MariaDB 12.3.2 installed natively via `winget install MariaDB.Server`; root
-password and an app user `hevy` both `hevydev` (throwaway, local only).
-`DATABASE_URL` was **appended** to the existing `.env` — that file is never read
-per CLAUDE.md, so the append was blind but safe (`DATABASE_URL` is a new key;
-the old one was `DATABASE_PATH`). Tests:
-`TEST_DATABASE_URL="mysql://root:hevydev@127.0.0.1:3306" npm test`.
+MariaDB 12.3.2 installed natively via `winget install MariaDB.Server` and
+running as a Windows service; root and app user `hevy` both use the throwaway
+password `hevydev`. The `mariadb` CLI is NOT on PATH (it lives in
+`C:\Program Files\MariaDB 12.3\bin\`) — the service runs regardless.
+`npm run dev` serves **port 3001**, because another process holds 3000.
+Tests need the server: `TEST_DATABASE_URL="mysql://root:hevydev@127.0.0.1:3306" npm test`.
+
+> [!warning] `.env` must never be read (CLAUDE.md)
+> `DATABASE_URL` and `SETTINGS_ENCRYPTION_KEY` were appended blind. Append new
+> keys rather than rewriting the file, and only with names that cannot already
+> exist in it.
 
 ## Next steps
-1. Owner adds `LLM_API_KEY=<deepseek key>` to `.env` and restarts, then generate
-   one plan and confirm `source: "llm"` rather than a rules fallback. Until that
-   runs, the DeepSeek path is wired but unproven ([[plan-generation]]).
-2. Sync a SMALL plan (2 days) to Hevy. Nothing has hit the live write path yet,
-   and it is irreversible — no DELETE endpoint, capped routines ([[hevy-api]]).
-3. Prove the container path when Docker exists (or on the deploy host), and
-   clear the warning in [[deployment]].
-4. Decide the VPS vendor and do a first real deploy.
+1. **Owner adds `LLM_API_KEY=<deepseek key>` to `.env`**, restart, then generate
+   one plan and confirm the preview reports an LLM plan rather than a rules
+   fallback. This is the gap between "runs" and "does the thing".
+2. **Sync one 2-day plan to Hevy** and check the routines land correctly. First
+   write to the live account; irreversible.
+3. Offer to delete `data/` (plaintext key leftover) — ask, do not assume.
+4. Deploy: prove `docker compose up`, add a `mysqldump` backup cron, pick the
+   VPS. See [[deployment]] for what is untested.
