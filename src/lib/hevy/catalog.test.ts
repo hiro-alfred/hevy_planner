@@ -104,6 +104,24 @@ describe("refreshCatalog", () => {
     expect(await catalog.getCatalogStatus()).toMatchObject({ count: 1 });
   });
 
+  it("aborts instead of writing a truncated walk", async () => {
+    await catalog.refreshCatalog(stubClient([[template({ id: "a" })]]).client);
+
+    // A page_count beyond the safety cap means the API is misbehaving; writing
+    // the first 200 pages would delete every template living past them.
+    const runaway = {
+      getExerciseTemplates: async (page: number) => ({
+        page,
+        page_count: 5000,
+        exercise_templates: [template({ id: `p${page}` })],
+      }),
+    } as unknown as HevyClient;
+
+    await expect(catalog.refreshCatalog(runaway)).rejects.toThrow(/aborted/i);
+    expect(await catalog.getCatalogStatus()).toMatchObject({ count: 1 });
+    expect(await catalog.getTemplateById("a")).not.toBeNull();
+  });
+
   it("tolerates a duplicate id appearing across shifting pages", async () => {
     const { client } = stubClient([[template({ id: "dupe" })], [template({ id: "dupe" })]]);
     await expect(catalog.refreshCatalog(client)).resolves.toBe(1);

@@ -6,7 +6,11 @@ import { defineConfig } from "vitest/config";
 // file before importing the db client (see src/lib/hevy/catalog.test.ts).
 export default defineConfig({
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // The real package throws outside an RSC graph — see the stub's comment.
+      "server-only": fileURLToPath(new URL("./src/test/server-only-stub.ts", import.meta.url)),
+    },
   },
   test: {
     environment: "node",

@@ -35,3 +35,15 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   13 tests caught two real bugs (bare `0` in ORDER BY read as a column ordinal;
   Windows SQLite file lock). New [[catalog-service]] page. Build, lint, vitest,
   wiki tests green.
+- 2026-08-08 — milestone 1 review (Fable, commit 4f6b2fd): no blockers. Acted on
+  the truncated-walk finding — a `page_count` past the safety cap now aborts
+  instead of pruning everything beyond it. Refresh also switched from
+  upsert-then-prune-by-timestamp to clear-then-insert in one transaction, after
+  a test caught two same-millisecond refreshes sharing a `fetchedAt`. Deferred
+  finding: candidate lists are not balanced per muscle group, so generation
+  should call `getCandidates` once per training day (noted for milestone 3).
+- 2026-08-08 — milestone 2 (settings): `/settings` page with masked key entry,
+  test-connection and catalog-refresh actions; `src/lib/settings.ts` +
+  `src/lib/hevy/session.ts` as the single key path; nav shell added to the
+  layout. New [[key-handling]] page. Verified against a running server: the
+  stored key appears 0 times in the rendered HTML, only its last 4 do.

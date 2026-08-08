@@ -28,15 +28,23 @@ candidate lists that generation prompts consume. Lives in `src/lib/hevy/catalog.
 - **Fetch fully, then write.** The whole network walk completes before the
   transaction opens, so a mid-walk failure leaves the previous cache untouched
   instead of truncating it.
-- **Upsert then prune in one transaction.** Every row is stamped with this run's
-  `fetchedAt`; rows carrying any other stamp are deleted as gone-upstream. An
-  empty response **throws instead of pruning** — an empty library is far likelier
-  to be an API fault than the truth.
+- **Clear then insert in one transaction.** The table is emptied and refilled
+  atomically, so readers never see a partial cache. Two refusals guard it: an
+  empty response **throws instead of writing** (an empty library is far likelier
+  to be an API fault than the truth), and a `page_count` above the `MAX_PAGES`
+  safety valve **aborts** rather than persisting a truncated walk — writing the
+  first N pages would silently delete every template living past them.
 
 Ids are de-duplicated before insert: `page_count` is a page total and pages can
 shift underneath a multi-request walk, so the same template can arrive twice and
-would otherwise break the multi-row insert on its own conflict. A `MAX_PAGES`
-valve stops a looping response from spinning forever.
+would otherwise break the multi-row insert on its own conflict.
+
+> [!note] Why not upsert-then-prune-by-timestamp
+> The first implementation stamped each row with the run's `fetchedAt` and
+> deleted rows carrying any other stamp. Two refreshes inside the same
+> millisecond share a timestamp, so the prune kept gone-upstream rows — a test
+> caught it. Clear-then-insert has no such dependency and costs nothing at this
+> table's size.
 
 ## Candidate filtering
 
@@ -52,6 +60,15 @@ to ONE SQL query:
   templates would generate nonsense sets
 - ordering → primary-muscle matches first, then built-ins before customs, so a
   `limit` truncates the least relevant tail rather than an arbitrary slice
+
+> [!important] Call it once per training day, not once per plan
+> The result is one flat list ordered by (primary-match, is_custom, title), with
+> no per-muscle-group balancing. A whole-plan call spanning many groups can let
+> `limit` alphabetically starve a group of candidates — and since generation may
+> only use listed ids, that group's training day then cannot be filled. Callers
+> therefore request candidates **per training day**, passing just that day's
+> muscle groups. Doing so is a handful of queries per plan, not an N+1 over
+> exercises.
 
 Companions: `getTemplatesByIds` (batch id resolution for generation
 post-validation), `searchTemplates` (title LIKE, for the swap-exercise picker),

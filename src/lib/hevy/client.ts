@@ -39,6 +39,11 @@ export class HevyClient {
     return res.json() as Promise<T>;
   }
 
+  // Cheapest authenticated call in the API — used to validate a key.
+  getUserInfo() {
+    return this.request<{ data: { id: string; name: string; url: string } }>("/v1/user/info");
+  }
+
   // Max pageSize is 100 on this endpoint only; callers page until page_count.
   getExerciseTemplates(page: number) {
     return this.request<{

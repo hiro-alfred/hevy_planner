@@ -24,7 +24,8 @@ Milestone queue: (1) catalog refresh + candidate filtering, (2) settings page + 
 key action, (3) plan form → generate → preview → sync, (4) dashboard home,
 (5) lint/cleanup pass, (6) optional deploy readiness.
 
-**IN PROGRESS: milestone 1** — `src/lib/hevy/catalog.ts`.
+**DONE: milestone 1** (catalog service, commit 4f6b2fd — see [[catalog-service]]).
+**IN PROGRESS: milestone 2** — settings page + Hevy key entry.
 
 ## State reached
 - Work happens on git worktree branch `worktree-e2e-build`, branched from `dev` at

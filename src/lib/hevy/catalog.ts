@@ -15,9 +15,9 @@ export type CatalogRow = typeof exerciseTemplates.$inferSelect;
 // not spin forever. 200 pages × 100 = 20k templates, far above the real library.
 const MAX_PAGES = 200;
 
-// 7 columns per row; SQLite's default variable cap is 32k on modern builds, but
+// 8 columns per row; SQLite's default variable cap is 32k on modern builds, but
 // chunking keeps a single statement well inside even the conservative 999 limit.
-const UPSERT_CHUNK = 100;
+const INSERT_CHUNK = 100;
 
 // Set types that a sets × reps plan can express (planner/schema.ts models every
 // set as a rep range). Duration/distance templates would produce nonsense sets,
@@ -47,8 +47,8 @@ function toRow(t: HevyExerciseTemplate, fetchedAt: string) {
  *
  * The network walk happens first and entirely outside the transaction: a failed
  * or partial fetch must leave the previous cache untouched rather than
- * truncating it. Only once every page has been read do we upsert and prune in
- * one synchronous better-sqlite3 transaction.
+ * truncating it. Only once the walk has provably completed do we swap the table
+ * contents inside one synchronous better-sqlite3 transaction.
  *
  * @returns the number of templates cached.
  */
@@ -62,43 +62,38 @@ export async function refreshCatalog(client: HevyClient): Promise<number> {
     const res = await client.getExerciseTemplates(page);
     templates.push(...(res.exercise_templates ?? []));
     // page_count is a page total, not an item total (see hevy-api).
-    pageCount = Math.min(res.page_count || 1, MAX_PAGES);
+    pageCount = res.page_count || 1;
+    if (pageCount > MAX_PAGES) {
+      // Stopping at the cap and writing anyway would delete every template
+      // living beyond it. A library this large means the API is misbehaving.
+      throw new Error(
+        `Catalog refresh aborted: API reported ${pageCount} pages (max ${MAX_PAGES}); cache left unchanged`,
+      );
+    }
     page += 1;
   } while (page <= pageCount);
 
   // De-duplicate defensively: pages can shift underneath a multi-request walk,
-  // and a repeated id would blow up the multi-row insert on its own conflict.
+  // and a repeated id would break the multi-row insert on its own conflict.
   const rows = [...new Map(templates.map((t) => [t.id, toRow(t, fetchedAt)])).values()];
 
   if (rows.length === 0) {
     // An empty library is far more likely to be an API fault than the truth —
-    // pruning here would wipe a working cache.
+    // replacing the table here would wipe a working cache.
     throw new Error("Catalog refresh returned no exercise templates; cache left unchanged");
   }
 
+  // Clear-then-insert, not upsert-then-prune-by-timestamp: two refreshes inside
+  // the same millisecond share a fetchedAt, which would make a timestamp-based
+  // prune silently keep gone-upstream rows. The transaction means readers never
+  // observe the empty window.
   db.transaction((tx) => {
-    for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
+    tx.delete(exerciseTemplates).run();
+    for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
       tx.insert(exerciseTemplates)
-        .values(rows.slice(i, i + UPSERT_CHUNK))
-        .onConflictDoUpdate({
-          target: exerciseTemplates.id,
-          set: {
-            title: sql`excluded.title`,
-            type: sql`excluded.type`,
-            primaryMuscleGroup: sql`excluded.primary_muscle_group`,
-            secondaryMuscleGroups: sql`excluded.secondary_muscle_groups`,
-            equipmentCategory: sql`excluded.equipment_category`,
-            isCustom: sql`excluded.is_custom`,
-            fetchedAt: sql`excluded.fetched_at`,
-          },
-        })
+        .values(rows.slice(i, i + INSERT_CHUNK))
         .run();
     }
-    // Anything not touched by this run no longer exists upstream. Safe because
-    // we only get here after a complete walk that returned at least one row.
-    tx.delete(exerciseTemplates)
-      .where(sql`${exerciseTemplates.fetchedAt} <> ${fetchedAt}`)
-      .run();
   });
 
   return rows.length;

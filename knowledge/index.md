@@ -44,6 +44,8 @@ category. Start here; conventions live in [[schema]].
   one-query candidate filtering, SQLite traps.
 - [[testing-setup]] — vitest for app logic, pytest for the vault; how to test
   DB-backed modules and the Windows install flag.
+- [[key-handling]] — the four barriers that keep the Hevy API key off the client,
+  the env fallback, and the settings page surface.
 
 ## decisions/
 
