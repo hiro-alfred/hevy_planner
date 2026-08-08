@@ -20,6 +20,10 @@ npm-debug.log*
 # Local git worktrees
 /.claude/worktrees/
 
+# Electron crashpad log; the obsidian CLI the wiki workflow depends on drops one
+# here on some invocations. Never source.
+/debug.log
+
 # Leftover from the SQLite era. Nothing writes here any more (state lives in
 # MariaDB), but an existing file may still hold a stored Hevy API key, so it
 # stays ignored rather than being deleted for you. Safe to remove by hand.
