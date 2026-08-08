@@ -50,6 +50,8 @@ category. Start here; conventions live in [[schema]].
   the volume model, and post-validation.
 - [[hevy-sync]] — create-once-then-PUT, content hashing, and why a duplicate
   routine is unrecoverable.
+- [[deployment]] — standalone build, Docker image shape, and the two runtime
+  settings that break it.
 
 ## decisions/
 

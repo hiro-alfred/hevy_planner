@@ -1,0 +1,15 @@
+# Keep the build context small and keep secrets and local state out of it.
+.env
+.env.*
+!.env.example
+
+node_modules
+.next
+data
+.git
+.claude
+
+# Agent/dev tooling, not part of the product.
+knowledge
+tests
+requirements.txt

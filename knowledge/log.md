@@ -88,3 +88,10 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   `UNIQUE(plan_id, day_index)`, a `staleRoutines` warning for plans that shrank,
   and moved `getLlmConfig()` inside the try so a misconfigured provider falls
   back to the rules. 57 tests; migration verified applying to an existing DB.
+- 2026-08-08 — milestone 6 (deploy readiness): `output: 'standalone'` +
+  `serverExternalPackages: ['better-sqlite3']`, multi-stage Dockerfile
+  (non-root, `/data` volume, ships `drizzle/` so boot migrations work),
+  `.dockerignore`. New [[deployment]] page. Verified by running the standalone
+  server in the image's file layout: migrations applied to a fresh DB and all
+  pages served. Found that standalone binds the machine hostname unless
+  `HOSTNAME` is set — the container would be unreachable without it.

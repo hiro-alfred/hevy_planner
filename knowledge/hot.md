@@ -31,7 +31,7 @@ reviewed, one important key-leak finding fixed in milestone 3.
 **DONE: milestone 3** (plan flow — [[plan-generation]], [[hevy-sync]]).
 **DONE: milestone 4** (dashboard home page).
 **DONE: milestone 5** (cleanup pass).
-**NEXT: milestone 6 (optional)** — `output: 'standalone'` + Dockerfile.
+**DONE: milestone 6** (deploy readiness — [[deployment]]).
 
 ## State reached
 - Work happens on git worktree branch `worktree-e2e-build`, branched from `dev` at
