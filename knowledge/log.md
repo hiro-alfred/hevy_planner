@@ -243,3 +243,21 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   re-running `instrumentation.ts`, so the old long-lived server kept a working
   connection while the file drifted — an app that "still works" is not evidence
   its config is valid. Recorded as the blocker in [[hot]].
+- 2026-08-08 — **Added the optional trainee profile** ([[trainee-profile]]) and
+  **the LLM path finally ran for real**. A Fable subagent designed the field
+  set; its sharpest move was reading the existing system prompt ("Leave
+  weightKg null — you do not know the trainee's current loads") and choosing
+  the fields that delete that sentence, rather than the body metrics that were
+  asked for. It rejected **height** on the grounds that nothing in the pipeline
+  or in coaching practice consumes it; the owner accepted. Verified on real
+  generations, not unit tests: an injury produced zero overhead pressing across
+  21 exercises, anchors produced populated weights where their absence produced
+  nulls, and a target weight produced a "Cut" plan without the number ever
+  reaching the model. The bug of the session was invisible to every check —
+  `min={1} step={2.5}` on a number input makes 120 a `stepMismatch`, and a form
+  that fails constraint validation **does not submit and displays nothing**;
+  lint, types, 103 tests and the build were all green over a form that could
+  not be submitted. Also measured what the design had only guessed: generation
+  takes 1–3.5 minutes, not 30–60 seconds, which promotes the unbuilt
+  `streamObject` handler from nicety to the worst moment in the product.
+  Separately designed and recorded, unbuilt: [[exercise-alternatives]].

@@ -6,6 +6,8 @@ import { ActionMessage } from "@/components/action-message";
 import { IDLE } from "@/lib/action-state";
 import { DEFAULT_EQUIPMENT, EQUIPMENT_CATEGORIES, EQUIPMENT_LABELS } from "@/lib/hevy/constants";
 import { createPlanAction } from "../actions";
+import { Field, Section } from "./field";
+import { AboutYouFields, WorkAroundFields, WorkingWeightsFields } from "./profile-fields";
 
 const SESSIONS = [2, 3, 4, 5, 6];
 const MINUTES = [30, 45, 60, 75, 90];
@@ -22,30 +24,6 @@ const EXPERIENCE = [
   { value: "intermediate", label: "Intermediate" },
   { value: "advanced", label: "Advanced" },
 ];
-
-const LABEL_CLASSES = "hud-mono text-[0.625rem] tracking-[0.18em] text-hud-cyan uppercase";
-
-function Field({
-  label,
-  htmlFor,
-  children,
-  hint,
-}: {
-  label: string;
-  htmlFor: string;
-  children: React.ReactNode;
-  hint?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <label htmlFor={htmlFor} className={LABEL_CLASSES}>
-        {label}
-      </label>
-      {children}
-      {hint && <p className="text-xs text-hud-dim">{hint}</p>}
-    </div>
-  );
-}
 
 /**
  * Plan request form. Generation runs inside the server action and can take a
@@ -112,8 +90,7 @@ export function PlanForm() {
         </Field>
       </div>
 
-      <fieldset className="flex flex-col gap-3">
-        <legend className={`mb-3 ${LABEL_CLASSES}`}>Equipment you can use</legend>
+      <Section title="Equipment you can use">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {EQUIPMENT_CATEGORIES.map((category) => (
             <label key={category} className="hud-check">
@@ -127,15 +104,28 @@ export function PlanForm() {
             </label>
           ))}
         </div>
-      </fieldset>
+      </Section>
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-hud-line-soft pt-5">
-        <button type="submit" disabled={isPending} className={buttonClasses("primary")}>
-          {isPending ? "Building your plan…" : "Generate plan"}
-        </button>
-        <span className="hud-sub text-xs">
-          Nothing is sent to Hevy until you review the plan and press sync.
-        </span>
+      {/* Everything below is optional. Order is deliberate: what you want, then
+          who you are, then what to work around — a form that opens with injury
+          questions reads like a clinic intake. */}
+      <AboutYouFields />
+      <WorkingWeightsFields />
+      <WorkAroundFields />
+
+      <div className="flex flex-col gap-3 border-t border-hud-line-soft pt-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="submit" disabled={isPending} className={buttonClasses("primary")}>
+            {isPending ? "Building your plan…" : "Generate plan"}
+          </button>
+          <span className="hud-sub text-xs">
+            Nothing is sent to Hevy until you review the plan and press sync.
+          </span>
+        </div>
+        <p className="text-xs text-hud-dim">
+          Plans are generated suggestions, not medical advice — train around pain, and get
+          persistent pain looked at.
+        </p>
       </div>
 
       <ActionMessage state={isPending ? IDLE : state} />

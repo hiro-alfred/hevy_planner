@@ -54,6 +54,8 @@ category. Start here; conventions live in [[schema]].
   that break it, and getting a daemon onto the dev machine.
 - [[ui-design-system]] — the neon-HUD theme: dark-only tokens, the CSS file
   layering, the four motion components, and the styling traps behind them.
+- [[trainee-profile]] — the optional intake fields, what each one mechanically
+  changes, and why height was rejected.
 
 ## decisions/
 
@@ -66,3 +68,5 @@ category. Start here; conventions live in [[schema]].
   traps (drizzle's `json()` does not round-trip on MariaDB), verification status.
 - [[wiki-bootstrap]] — choices made at vault creation: categories, re-authored
   skills, thin bootstrap.
+- [[exercise-alternatives]] — DESIGNED, NOT BUILT: repeatable catalog-sourced
+  exercise swap, per-plan rejections, and why sync stays safe.

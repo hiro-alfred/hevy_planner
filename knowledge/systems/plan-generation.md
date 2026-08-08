@@ -103,6 +103,20 @@ DeepSeek's thinking mode is a request option rather than a separate model, so
 Cost is not a constraint at this volume: roughly 5k input + 6k output tokens per
 plan is about $0.007 on v4-pro and $0.002 on v4-flash.
 
+## The prompt carries an optional profile
+
+`buildPrompt` appends up to three further sections — about the trainee, the
+constraints to work around, and the trainee's own words — each omitted entirely
+when empty. The system prompt gained injury rules and made the "leave weightKg
+null" rule conditional on anchors being present. See [[trainee-profile]].
+
+> [!warning] Measured LLM latency is 1–3.5 minutes, not 30–60 seconds
+> Three real generations took 115 s, 2.1 min and 3.4 min end to end (the long
+> ones include the validation retry). The submit button shows a pending label
+> for that whole time with no progress. This is the strongest argument yet for
+> the `streamObject` route handler [[plan-pipeline]] specifies and this
+> implementation skipped.
+
 > [!note] Deviation from the design: no streaming yet
 > [[plan-pipeline]] specifies `streamObject` behind a route handler so a 30–60s
 > generation fills the preview progressively. This is `generateObject` inside a

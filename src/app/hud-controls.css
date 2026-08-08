@@ -97,9 +97,17 @@
     border: 1px solid var(--color-hud-line);
     background: color-mix(in srgb, var(--color-hud-bg) 70%, transparent);
     padding: 0.625rem 0.75rem;
+    /* textarea and select default to their own font in most browsers. */
+    font-family: inherit;
     font-size: 0.875rem;
     color: var(--color-hud-ink);
     transition: border-color 0.2s ease, box-shadow 0.25s ease;
+  }
+
+  textarea.hud-field {
+    resize: vertical;
+    min-height: 5.5rem;
+    line-height: 1.5;
   }
 
   .hud-field::placeholder {
@@ -131,9 +139,59 @@
     background: color-mix(in srgb, var(--color-hud-cyan) 5%, transparent);
   }
 
+  /* A focus option that cannot be picked because the cap is already reached.
+   * Dimmed rather than hidden, so the cap is visible rather than mysterious. */
+  .hud-check--muted {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .hud-check--muted:hover {
+    border-color: var(--color-hud-line-soft);
+    background: transparent;
+  }
+
   .hud-check:has(input:checked) {
     border-color: color-mix(in srgb, var(--color-hud-cyan) 60%, transparent);
     background: color-mix(in srgb, var(--color-hud-cyan) 9%, transparent);
+  }
+
+  /* ---- disclosure ------------------------------------------------------ */
+
+  .hud-disclosure > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: fit-content;
+    cursor: pointer;
+    border: 1px solid var(--color-hud-line);
+    padding: 0.5rem 0.875rem;
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-hud-dim);
+    list-style: none;
+    transition: color 0.2s ease, border-color 0.2s ease;
+  }
+
+  /* Safari still paints the default triangle without this. */
+  .hud-disclosure > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .hud-disclosure > summary::before {
+    content: "+";
+    color: var(--color-hud-cyan);
+  }
+
+  .hud-disclosure[open] > summary::before {
+    content: "−";
+  }
+
+  .hud-disclosure > summary:hover {
+    color: var(--color-hud-cyan);
+    border-color: var(--color-hud-cyan);
   }
 
   /* ---- chips & notices ------------------------------------------------- */

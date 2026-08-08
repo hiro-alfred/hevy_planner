@@ -42,6 +42,12 @@ export default async function PlanPage({ params, searchParams }: PageProps<"/pla
   ]);
   const violations = plan ? validatePlan(plan, row.request, catalog) : [];
 
+  // Free-text profile fields the deterministic generator has no way to honour.
+  const ignoredByRules = [
+    row.request.injuries && "your reported injuries",
+    row.request.notes && "your notes",
+  ].filter(Boolean) as string[];
+
   return (
     <div className="hud-shell max-w-3xl">
       <header className="reveal flex flex-wrap items-end justify-between gap-4">
@@ -76,6 +82,16 @@ export default async function PlanPage({ params, searchParams }: PageProps<"/pla
       {degraded && (
         <Notice tone="warn">
           The LLM provider was unreachable, so this plan came from the built-in generator.
+        </Notice>
+      )}
+      {/* The rule-based generator reads none of the free-text profile. Saying so
+          matters most for injuries: a plan that silently ignored them while the
+          form implied otherwise is worse than one that never asked. */}
+      {justGenerated === "rules" && ignoredByRules.length > 0 && (
+        <Notice tone="warn">
+          The built-in generator cannot read {ignoredByRules.join(" or ")} — only the LLM
+          generator acts on {ignoredByRules.length === 1 ? "it" : "them"}. This plan was built
+          without {ignoredByRules.length === 1 ? "that" : "those"}.
         </Notice>
       )}
       {violations.length > 0 && (

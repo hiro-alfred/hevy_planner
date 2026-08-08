@@ -41,12 +41,20 @@ export interface GenerateResult {
  */
 async function loadDayCandidates(request: PlanRequest): Promise<DayCandidates[]> {
   const templates = buildTrainingDays(request);
+  const focus = request.focusMuscleGroups ?? [];
+
   return Promise.all(
     templates.map(async (template) => ({
       template,
       candidates: await getCandidates({
         equipment: request.equipment,
-        muscleGroups: template.muscleGroups,
+        // Focus groups widen the CANDIDATE query but deliberately not the day's
+        // own muscleGroups, which is what the prompt reports as the day's
+        // target. Without this a request to emphasise forearms on a PPL split
+        // returns zero forearm candidates — no template lists them — so the
+        // emphasis instruction would have nothing to act on. Keeping the two
+        // apart means a Legs day can offer a curl without being retitled.
+        muscleGroups: [...new Set([...template.muscleGroups, ...focus])],
         limit: CANDIDATES_PER_DAY,
       }),
     })),

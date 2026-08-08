@@ -108,8 +108,9 @@ frame.
   flex column, which made it full-width inside a panel until `items-start` was
   added.
 
-## Not yet seen
+## Coverage
 
-`/plans/[id]` has never been rendered — the database holds zero plans. It compiles,
-typechecks and builds, but the plan preview, day panels and sync notices have not
-been looked at. See [[hot]] for the current blocker.
+Every page has now been rendered and looked at, `/plans/[id]` included — it was
+the last one, and it only became reachable once real plans existed (see
+[[trainee-profile]]). Its day panels, corner brackets, pointer glow and staggered
+reveal all behave as designed against a real four-day plan.

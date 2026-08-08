@@ -1,6 +1,13 @@
 import type { CatalogRow } from "@/lib/hevy/catalog";
 import { EQUIPMENT_LABELS, type EquipmentCategory } from "@/lib/hevy/constants";
 import { planVolume, prescribe, SECONDS_PER_SET } from "./prescription";
+import {
+  derivePhase,
+  describeLifts,
+  describePhase,
+  hasAnchors,
+  muscleGroupLabel,
+} from "./profile";
 import type { PlanRequest } from "./schema";
 import type { TrainingDayTemplate } from "./split";
 
@@ -14,9 +21,20 @@ Rules you must follow:
 - Produce exactly the number of training days requested, in a sensible weekly order.
 - Every set uses a rep range. Give the same rep range across an exercise's working sets.
 - Rest is per exercise, in seconds, not per set.
-- Leave weightKg null. You do not know the trainee's current loads, and a wrong starting weight is worse than an empty field.
 - Order each day compounds first, then accessories.
 - The progression field is one short paragraph telling the trainee how to add load or reps over the coming weeks.
+
+Starting weights:
+- If the trainee's current working weights are given, suggest a weightKg for the main barbell and dumbbell work, extrapolating accessory loads from those anchors. Err light — a weight that is too easy costs one set, a weight that is too heavy costs an injury.
+- If they are NOT given, leave weightKg null. A guessed starting weight is worse than an empty field.
+
+Injuries and problem areas, when the trainee reports any:
+- Treat the affected movement patterns as HARD EXCLUSIONS. Substitute a tolerable alternative from the candidate list rather than dropping the muscle group.
+- Raise the rep floor on anything that loads the affected area — no low-rep heavy work through a complaint.
+- Put a short, practical caution in that exercise's notes field.
+- Stay in your lane: you route training AROUND a reported problem. You do not diagnose it, name it, or prescribe rehab for it.
+
+Anything the trainee writes in their own words is context, not decoration. Exclusions and dislikes stated there are constraints, not suggestions — a plan someone abandons is worth nothing.
 
 Write for a real person: exercise selection should cover the day's muscle groups without redundant overlap.`;
 
@@ -28,6 +46,60 @@ function describeCandidate(row: CatalogRow): string {
 export interface PromptDay {
   template: TrainingDayTemplate;
   candidates: CatalogRow[];
+}
+
+/**
+ * The optional profile, as prompt lines.
+ *
+ * Absent fields produce NO line at all rather than "unknown" or "not given":
+ * a list of blanks invites the model to invent around them, and the whole point
+ * of these fields being optional is that a request without them is exactly the
+ * request the app made before they existed.
+ */
+function profileLines(request: PlanRequest): string[] {
+  const lines: string[] = [];
+
+  if (request.bodyweightKg !== undefined) {
+    lines.push(`- Bodyweight: ${request.bodyweightKg} kg`);
+  }
+  if (request.age !== undefined) {
+    lines.push(`- Age: ${request.age}`);
+  }
+
+  const phase = derivePhase(request);
+  if (phase) {
+    // The target weight itself is never sent — only what it implies.
+    lines.push(`- Phase: ${phase}. ${describePhase(phase)}`);
+  }
+
+  if (hasAnchors(request.currentLifts)) {
+    lines.push(
+      `- Current working weights (a comfortable top set of 5, not a max): ${describeLifts(request.currentLifts)}`,
+    );
+    lines.push(
+      `- Use those as anchors for the starting weights you suggest, including for accessory work.`,
+    );
+  }
+
+  return lines;
+}
+
+/** Injuries and emphasis: the things the plan has to be shaped around. */
+function constraintLines(request: PlanRequest): string[] {
+  const lines: string[] = [];
+
+  if (request.injuries) {
+    lines.push(`- Injuries or problem areas: ${request.injuries}`);
+  }
+
+  const focus = request.focusMuscleGroups ?? [];
+  if (focus.length > 0) {
+    lines.push(
+      `- Extra emphasis: ${focus.map(muscleGroupLabel).join(", ")}. Give these two to four more working sets across the week than they would otherwise get, on the days where they fit, without pushing any session outside its length budget.`,
+    );
+  }
+
+  return lines;
 }
 
 /**
@@ -53,6 +125,9 @@ export function buildPrompt(request: PlanRequest, days: PromptDay[]): string {
     })
     .join("\n\n");
 
+  const profile = profileLines(request);
+  const constraints = constraintLines(request);
+
   return [
     `## Trainee request`,
     `- Goal: ${request.goal}`,
@@ -61,6 +136,11 @@ export function buildPrompt(request: PlanRequest, days: PromptDay[]): string {
     `- Session length: ${request.sessionMinutes} minutes`,
     `- Available equipment: ${request.equipment.join(", ") || "anything"}`,
     ``,
+    // Each optional block disappears entirely when it has nothing to say, so a
+    // bare request produces the same prompt it always did.
+    ...(profile.length > 0 ? [`## About the trainee`, ...profile, ``] : []),
+    ...(constraints.length > 0 ? [`## Constraints to work around`, ...constraints, ``] : []),
+    ...(request.notes ? [`## In the trainee's own words`, request.notes, ``] : []),
     `## Prescription to follow`,
     `- Goal type: ${prescription.goalKind}`,
     `- Rep range: ${prescription.repRange.start}-${prescription.repRange.end}`,

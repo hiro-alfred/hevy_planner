@@ -12,7 +12,35 @@ import { planRequestSchema, type PlanRequest } from "@/lib/planner/schema";
 
 // Server actions for the plan flow: request -> generate -> preview -> sync.
 
+// An untouched optional field arrives as "". It must become `undefined`, not 0
+// and not null: the schema omits absent fields from the prompt entirely, and a
+// bodyweight of 0 would be a lie the model would act on. Text that is present
+// but unparseable is passed through as NaN so the schema rejects it, rather
+// than being silently dropped.
+function optionalNumber(value: FormDataEntryValue | null): number | undefined {
+  const text = String(value ?? "").trim();
+  return text === "" ? undefined : Number(text);
+}
+
+function optionalText(value: FormDataEntryValue | null): string | undefined {
+  const text = String(value ?? "").trim();
+  return text === "" ? undefined : text;
+}
+
+/** Undefined unless at least one anchor lift was given. */
+function parseCurrentLifts(formData: FormData) {
+  const lifts = {
+    squatKg: optionalNumber(formData.get("squatKg")),
+    benchKg: optionalNumber(formData.get("benchKg")),
+    deadliftKg: optionalNumber(formData.get("deadliftKg")),
+    overheadPressKg: optionalNumber(formData.get("overheadPressKg")),
+  };
+  return Object.values(lifts).some((value) => value !== undefined) ? lifts : undefined;
+}
+
 function parseRequest(formData: FormData): PlanRequest {
+  const focus = formData.getAll("focusMuscleGroups").map(String);
+
   return planRequestSchema.parse({
     goal: String(formData.get("goal") ?? "").trim(),
     sessionMinutes: Number(formData.get("sessionMinutes")),
@@ -20,6 +48,14 @@ function parseRequest(formData: FormData): PlanRequest {
     split: String(formData.get("split") ?? "auto"),
     experience: String(formData.get("experience") ?? "beginner"),
     equipment: formData.getAll("equipment").map(String),
+
+    bodyweightKg: optionalNumber(formData.get("bodyweightKg")),
+    targetWeightKg: optionalNumber(formData.get("targetWeightKg")),
+    age: optionalNumber(formData.get("age")),
+    currentLifts: parseCurrentLifts(formData),
+    focusMuscleGroups: focus.length > 0 ? focus : undefined,
+    injuries: optionalText(formData.get("injuries")),
+    notes: optionalText(formData.get("notes")),
   });
 }
 
@@ -45,7 +81,9 @@ export async function createPlanAction(
   try {
     request = parseRequest(formData);
   } catch {
-    return errorState("Please fill in every field, including at least one equipment option.");
+    return errorState(
+      "Check the form: a goal and at least one equipment option are required, and the optional numbers must be realistic (bodyweight 30–250 kg, age 13–100, at most two focus areas).",
+    );
   }
 
   const planId = await createPlan(request);

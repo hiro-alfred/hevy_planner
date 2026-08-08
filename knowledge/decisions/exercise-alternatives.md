@@ -1,0 +1,143 @@
+---
+title: Exercise alternatives — swap design (not yet built)
+aliases: [alternatives, swap, swap exercise, other alternatives]
+tags: [decision, planner, ui, sync, design]
+type: design
+created: 2026-08-08
+updated: 2026-08-08
+sources:
+  [
+    src/lib/hevy/catalog.ts,
+    src/lib/planner/schema.ts,
+    src/lib/planner/prescription.ts,
+    src/lib/hevy/sync.ts,
+    src/app/plans/actions.ts,
+    src/app/plans/[id]/plan-preview.tsx,
+  ]
+---
+
+# Exercise alternatives — swap design
+
+> [!important] Designed, decided, NOT implemented
+> Nothing in this page exists in the code yet. It is written down so the
+> implementing session does not have to re-derive it. Owner brief: an exercise
+> the user dislikes should be replaceable from the preview, repeatedly, without
+> ever repeating itself.
+
+This fills in the half of "Edit scope: minimal-plus — swap-exercise (catalog
+picker)" that [[plan-pipeline]] already closed as a decision. Half the
+scaffolding exists: `catalog.ts` ships `searchTemplates()` commented "for the
+swap-exercise picker" and `getTemplateById()` "used by the preview UI after an
+exercise swap".
+
+## Decisions
+
+**Alternatives come from the catalog, never from the LLM.** The load case is
+someone clicking "show me something else" three times in a row — browsing
+tolerates ~100 ms, not the 30–60 s (in practice 1–3.5 min, measured) an LLM call
+costs. It can also fail, and it can hallucinate an id, which here is not
+cosmetic: an unknown id is a sync-time landmine. The context an LLM would add is
+already a WHERE clause — same primary muscle group, the trainee's equipment,
+rep-based type, not already in the day, not previously rejected. Against 452
+local rows there is nothing for a model to know that the columns do not say.
+
+**One fetch per picker-open, paged client-side.** The action returns the whole
+ranked pool (~30 rows); "more alternatives" advances an offset. So the first
+click costs one local query and every later click costs nothing. Ranking: same
+primary muscle group first, then secondary matches; within each, same equipment
+category as the outgoing exercise, then the existing `EQUIPMENT_RANK`, then title.
+
+**A swap is a permanent rejection, per plan** (owner's decision, 2026-08-08).
+The swapped-out template id is appended to a new optional
+`excludedExercises: z.array(z.string()).max(100).optional()` on
+`planRequestSchema`. It lives in the **request**, not the plan document, because
+the request is what `regeneratePlanAction` re-reads — putting it in the plan
+would mean `savePlan` vaporises it on the next regenerate, which is precisely
+the failure being prevented. JSON column, so **no migration**.
+
+Options merely browsed past are **not** recorded. Scrolling past an exercise is
+not a verdict on it, and treating it as one would starve the pool within a few
+sessions.
+
+> [!warning] Known gap in this decision
+> There is no UI to view or clear `excludedExercises`. Once something is
+> swapped out it cannot come back. Worth adding a "rejected exercises" list to
+> the plan page in the same pass, or the first accidental swap is permanent.
+
+Exclusions are **per plan, not global**. Promoting them to a global preference
+later is easy; the reverse is not.
+
+## The substitution rule
+
+The replacement inherits the outgoing exercise's `sets` array and `restSeconds`
+**verbatim**. Only `weightKg` and `notes` reset to null — a load anchored to a
+barbell bench does not transfer to a machine, and an injury caution written for
+one movement ranges from useless to dangerous on another.
+
+This makes the session-length contract safe *by construction* rather than by
+re-checking: `sessionSeconds()` depends on exactly `sets.length` and
+`restSeconds` ([[plan-generation]]), so a day's computed length is identical
+before and after a swap. **A swap can never create a ±20% violation.**
+
+Do not auto-adjust rest for a different movement class. That would silently
+change session maths the user already accepted, and it duplicates the
+per-exercise rest tweak [[plan-pipeline]] scopes separately.
+
+## Sync interaction
+
+A swap writes `plans.plan` and `plans.request`. **It touches nothing else.**
+Every existing mechanism then does its job unmodified: the day's content hash
+stops matching `sync_links`, the chip flips to "Changes pending", and the next
+**explicit** sync takes the PUT branch against the stored routine id — zero
+POSTs, zero quota consumed, nothing stranded. See [[hevy-sync]].
+
+What must not happen, each a permanent-damage path given no-DELETE and the
+routine cap:
+
+- **No auto-sync after a swap.** Never-auto-push is a closed decision and every
+  Hevy write is irreversible.
+- **No day-level identity changes.** The swap is strictly in place at
+  `(dayIndex, exerciseIndex)`. Reordering or removing *days* would shift the
+  `dayIndex` → `sync_links` correspondence and POST a new routine while
+  stranding the old one.
+- **No id the catalog does not know.** The picker cannot produce one, but the
+  action must not trust the client: re-verify with `getTemplateById` and check
+  the type is rep-based. `searchTemplates` filters neither.
+
+Fine-grained swap is therefore a **sync-safety** feature, not only a UX one: it
+is the repair path that does not rebuild days, so it reduces how often anyone
+reaches for Regenerate on a capped, delete-less API.
+
+## Shape
+
+New pure module `src/lib/planner/alternatives.ts` (unit-testable like
+`rules.ts`), two server actions, and one client island
+`src/app/plans/[id]/exercise-swap.tsx` receiving only serializable scalars —
+`plan-preview.tsx` stays a server component. Inline expansion under the row, not
+a modal: the judgement "does this fit *this day*" depends on seeing the
+neighbouring exercises, and a modal severs that. Each option shows muscle-group
+and equipment chips, which *are* the explanation — they are the query's WHERE
+clause made visible.
+
+Exhaustion is real (bodyweight-only calves might be a pool of two). Say so
+plainly and offer `searchTemplates` as the escape hatch; **never loop back to
+the start**, which reads as broken.
+
+`getCandidates` gains `excludeIds?: string[]`, `validatePlan` gains a rule that
+an excluded exercise is a violation (the model only *requests* id compliance in
+`json_object` mode, so the validator is the real enforcement), and the
+unfillable-day error gains a clause naming exclusions as a possible cause.
+
+Concurrency: the read-modify-write runs inside `withPlanLock`, with an
+`expectedTemplateId` check so a second tab gets a clean refusal instead of a
+silent clobber.
+
+## Rejected
+
+LLM-per-swap (latency, cost, failure, hallucinated ids); hybrid catalog-then-LLM
+re-rank (the list reorders under the cursor); "regenerate this day" as the
+mechanism (replaces a whole day when one movement was objected to); rejections
+in the plan JSON (destroyed by regenerate); a rejections table (nothing
+relational queries it, and it splits the request's reproducibility contract
+across two homes); excluding browsed-past options; a modal; auto-adjusted rest;
+auto-sync; shipping the filtered catalog to the client.
