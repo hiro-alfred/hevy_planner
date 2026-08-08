@@ -5,7 +5,7 @@ tags: [subsystem, deployment, docker, ops, mariadb]
 type: subsystem
 created: 2026-08-08
 updated: 2026-08-08
-sources: [Dockerfile, docker-compose.yml, .dockerignore, next.config.ts, src/instrumentation.ts, src/lib/db/migrate.ts]
+sources: [Dockerfile, docker-compose.yml, .dockerignore, .env.example, next.config.ts, src/instrumentation.ts, src/lib/db/migrate.ts, src/lib/planner/provider.ts]
 ---
 
 # Deployment
@@ -67,6 +67,23 @@ lives in the `db` service's `db-data` volume.
 > database. The test stack ([[testing-setup]]) is the one that publishes a port,
 > and it holds nothing real.
 
+## The app container only sees what compose lists
+
+There is no `env_file:` on the `app` service, so the container's environment is
+exactly the `environment:` block — a variable present in `.env` but absent from
+that list simply does not exist inside the container. That is a silent failure
+mode for the LLM in particular: with no `LLM_API_KEY` the app does not error, it
+falls back to the deterministic generator ([[plan-generation]]), so the stack
+looks healthy while producing rule-based plans. The block passes the whole
+`LLM_*` family (`LLM_API_KEY`, `LLM_PROVIDER`, `LLM_MODEL`, `LLM_THINKING`,
+`LLM_REASONING_EFFORT`) as read by `src/lib/planner/provider.ts`. It briefly
+passed `ANTHROPIC_API_KEY` instead, left over from before the provider became
+configurable — a name nothing reads any more.
+
+The published host port is `${APP_PORT:-3000}`. The server always listens on
+3000 inside the container (`PORT` in the Dockerfile); `APP_PORT` moves only the
+host side, for the common case where a dev server already holds 3000.
+
 ## Start-order race, and why `depends_on` is not enough
 
 MariaDB routinely takes seconds longer than the app to accept connections. The
@@ -87,12 +104,28 @@ The app itself is verified end to end against a real MariaDB — all routes, the
 boot migration, and 63/63 tests ([[mariadb-migration]]).
 
 > [!warning] The container path is still unobserved
-> Neither the Docker build nor `compose up` has been run — **no Docker daemon on
-> this machine** (firmware virtualization is available, but WSL2 has no distro).
-> Local dev uses a natively-installed MariaDB on 3306 instead. So the compose
-> wiring, the `depends_on` healthcheck, and the boot-migration retry are
-> reasoned-about, not tested. Local runs 12.3 (rolling) against the 11.4 (LTS)
-> pinned in the compose files. Treat the first `compose up` as unproven ground.
+> Neither the Docker build nor `compose up` has been run. So the compose wiring,
+> the `depends_on` healthcheck, and the boot-migration retry are reasoned-about,
+> not tested. Local dev uses a natively-installed MariaDB on 3306 instead, and
+> runs 12.3 (rolling) against the 11.4 (LTS) pinned in the compose files. Treat
+> the first `compose up` as unproven ground.
+
+## Getting a daemon on the dev machine
+
+The Windows box had no Docker because it had no hypervisor: VT-x and SLAT are
+available in firmware, but `Microsoft-Windows-Subsystem-Linux` and
+`VirtualMachinePlatform` were both disabled and `wsl.exe` was the inbox stub
+(it prints usage for `--status` and ignores `WSL_UTF8` — neither means WSL is
+broken, only that it is not installed). Both features are now **Enabled** via
+`dism /online /enable-feature /all /norestart`, which returned 3010: success,
+reboot required. Until that reboot the hypervisor does not start, so
+`wsl --update`, `wsl --install -d Ubuntu` and the Docker Desktop install all
+have to wait. Windows 10 Pro 22H2 build 19045 is above Docker Desktop's floor.
+
+Prove the daemon on the throwaway stack first — `docker compose -f
+docker-compose.test.yml up -d` ([[testing-setup]]) publishes 3307 and holds
+nothing real, so a mistake there costs nothing. Only then `compose up --build`
+against the volume that carries the encrypted Hevy key ([[key-handling]]).
 
 ## Still open
 

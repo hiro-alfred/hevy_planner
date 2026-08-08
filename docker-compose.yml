@@ -44,9 +44,19 @@ services:
       SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY:?set SETTINGS_ENCRYPTION_KEY in .env - see .env.example}
       # Optional bootstrap key; the settings page is the normal way to set it.
       HEVY_API_KEY: ${HEVY_API_KEY:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Plan generation. All optional — with no LLM_API_KEY the app falls back to
+      # the deterministic generator, silently, so a missing passthrough here
+      # looks exactly like a working container producing worse plans.
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_THINKING: ${LLM_THINKING:-}
+      LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-}
     ports:
-      - "3000:3000"
+      # Host port only; the server always listens on 3000 inside the container
+      # (Dockerfile PORT). Override with APP_PORT when 3000 is already taken on
+      # the host — a dev server on 3000 makes `compose up` fail on the bind.
+      - "${APP_PORT:-3000}:3000"
 
 volumes:
   db-data:

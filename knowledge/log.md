@@ -208,3 +208,22 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   recorded in [[plan-generation]]. Also: `ProviderOptions` is declared but not
   exported by `ai`; the real type is `SharedV4ProviderOptions` from
   `@ai-sdk/provider`, now a direct dependency since we import from it. 90 tests.
+- 2026-08-08 — **Started clearing the container path**: enabled WSL2's two
+  Windows features (`Microsoft-Windows-Subsystem-Linux`, `VirtualMachinePlatform`)
+  elevated via dism, which returned 3010 — reboot required before a hypervisor
+  exists, so Docker itself is still uninstalled. Reading the machine first was
+  worth it: `wsl --status` printing usage and ignoring `WSL_UTF8` looks like a
+  broken WSL but only means the inbox stub with the feature off, and
+  `HypervisorPresent=False` alongside `VirtualizationFirmwareEnabled=True` is
+  what said the blocker was Windows features rather than BIOS. Inspecting the
+  repo for the same reason found two compose faults the reboot would have run
+  straight into, both now fixed in [[deployment]]: the `app` service passed
+  `ANTHROPIC_API_KEY`, dead since the provider became configurable, so the
+  container would never have seen `LLM_API_KEY` — and because a missing key
+  falls back to the rule generator rather than erroring, that reads as a healthy
+  stack writing worse plans, the exact confusion [[plan-generation]] warns
+  about. Second, the hard-coded `3000:3000` would have failed its bind against
+  the node process already on 3000; the host side is now `${APP_PORT:-3000}`.
+  Worth keeping: the `app` service has no `env_file:`, so its environment is
+  exactly what `environment:` lists — `.env` reaching compose does not mean it
+  reaches the container.
