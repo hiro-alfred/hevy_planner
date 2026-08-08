@@ -1,0 +1,3 @@
+# Python dev tooling only — the app itself is Node/TypeScript; its dependencies
+# live in package.json (install with `npm install`).
+pytest>=8

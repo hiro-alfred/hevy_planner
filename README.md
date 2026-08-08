@@ -73,6 +73,13 @@ Pro-only capability.
 | Plan generation | Vercel AI SDK (provider-agnostic; Zod structured output) |
 | Deployment target | Self-hosted persistent server (budget VPS / Raspberry Pi), Docker + Next standalone |
 
+## Setup
+
+- **App (Node ≥ 20):** `npm install`, then `npm run dev` (or `npm run build && npm start`).
+  All application dependencies are declared in `package.json`.
+- **Dev tooling (Python, optional):** `pip install -r requirements.txt` — needed only to
+  run the knowledge-wiki lint tests (`python -m pytest tests/`).
+
 ## Configuration
 
 The primary way to supply a Hevy Pro API key is the dashboard's **settings page**: the
