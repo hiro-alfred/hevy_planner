@@ -149,6 +149,29 @@ describe("re-sync", () => {
 });
 
 describe("failure mid-sync", () => {
+  /**
+   * The folder id used to live only on sync_links rows, which are written only
+   * after a routine create succeeds. So a first sync whose FIRST create failed
+   * — the routine-cap 403 this design explicitly expects — lost the folder id,
+   * and the retry created a second folder. Folders have no DELETE endpoint, so
+   * every failed-then-retried first sync leaked one permanently.
+   */
+  it("never creates a second folder after a failed first create", async () => {
+    const failing = recorder({ failOnCreate: 1, createStatus: 403 });
+    await expect(sync.syncPlan(failing.client, planId, plan())).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(failing.folders).toHaveLength(1);
+    expect(failing.creates).toEqual([]);
+
+    // User frees quota in Hevy and retries.
+    const retry = recorder();
+    await sync.syncPlan(retry.client, planId, plan());
+
+    expect(retry.folders).toEqual([]);
+    expect(retry.creates).toEqual(["Push", "Pull"]);
+  });
+
   it("keeps what it created, so a retry resumes instead of duplicating", async () => {
     const failing = recorder({ failOnCreate: 2 });
     await expect(sync.syncPlan(failing.client, planId, plan())).rejects.toThrow(HevyApiError);
@@ -170,6 +193,22 @@ describe("failure mid-sync", () => {
       status: 403,
     });
     expect(capped.creates).toEqual([]);
+  });
+});
+
+describe("refusing unsafe writes", () => {
+  /**
+   * An empty routine would permanently consume part of the routine cap for
+   * something useless, and no API call can delete it afterwards.
+   */
+  it("refuses to push a day with no exercises, before touching Hevy", async () => {
+    const empty = plan();
+    empty.days[1]!.exercises = [];
+
+    const rec = recorder();
+    await expect(sync.syncPlan(rec.client, planId, empty)).rejects.toThrow(/no exercises/i);
+    expect(rec.folders).toEqual([]);
+    expect(rec.creates).toEqual([]);
   });
 });
 
@@ -201,6 +240,16 @@ describe("getSyncState", () => {
     await sync.syncPlan(recorder().client, planId, plan());
     const withExtraDay = plan(["Push", "Pull", "Legs"]);
     expect(await sync.getSyncState(planId, withExtraDay)).toMatchObject({
+      hasPendingChanges: true,
+    });
+  });
+
+  it("never reports up-to-date while a routine is stranded by a shrunken plan", async () => {
+    await sync.syncPlan(recorder().client, planId, plan(["Push", "Pull"]));
+    // The plan lost a day; the routine for it still exists in Hevy and cannot
+    // be deleted through the API.
+    expect(await sync.getSyncState(planId, plan(["Push"]))).toMatchObject({
+      staleRoutines: 1,
       hasPendingChanges: true,
     });
   });

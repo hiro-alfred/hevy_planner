@@ -100,6 +100,13 @@ export default async function PlanPage({ params, searchParams }: PageProps<"/pla
               {syncState.syncedDays > 0 && !syncState.hasPendingChanges && (
                 <Notice tone="info">Hevy is up to date with this plan.</Notice>
               )}
+              {syncState.staleRoutines > 0 && (
+                <Notice tone="warn">
+                  This plan has fewer days than it used to, so {syncState.staleRoutines} routine
+                  {syncState.staleRoutines === 1 ? "" : "s"} in Hevy no longer belong to it.
+                  Hevy&apos;s API cannot delete routines — remove them in the Hevy app.
+                </Notice>
+              )}
               <div className="flex flex-wrap items-start gap-3">
                 <ActionButton
                   action={syncPlanAction.bind(null, planId)}

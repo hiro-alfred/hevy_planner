@@ -83,8 +83,9 @@ Pro-only capability.
 ## Configuration
 
 The primary way to supply a Hevy Pro API key is the dashboard's **settings page**: the
-user pastes their key there, it is submitted to a server-side API route, and stored/used
-server-side only — it is never exposed back to the browser or used client-side.
+user pastes their key there, it is submitted to a server action, and stored and used
+server-side only — it is never exposed back to the browser or used client-side. The UI
+only ever sees whether a key is set plus its last four characters.
 
 `.env` remains available for local/deployment-level configuration and is **never
 committed**. `.env.example` documents the expected variables:
@@ -92,8 +93,9 @@ committed**. `.env.example` documents the expected variables:
 | Variable | Purpose |
 |---|---|
 | `HEVY_API_KEY` | *(optional)* Hevy Pro API key used as a fallback/default when none has been entered via the settings page |
-| `LLM_PROVIDER` | Selects which LLM provider the plan generator calls |
-| `LLM_API_KEY` | API key for the configured LLM provider |
+| `LLM_PROVIDER` | *(optional)* LLM provider for plan generation. Defaults to `anthropic` |
+| `LLM_MODEL` | *(optional)* Model id for that provider. Defaults to `claude-opus-5` |
+| `LLM_API_KEY` | *(optional)* API key for the configured provider. **Without it the app still works** — plans come from the deterministic built-in generator instead |
 | `DATABASE_PATH` | *(optional)* Path of the SQLite database file (defaults to `./data/hevy-planner.sqlite`) |
 
 Weights are handled in **kg by default** (Hevy's API is kg-only); a display-only
@@ -107,9 +109,11 @@ well, instead of `.env`.
 
 ## Repository structure
 
-- `src/` — the Next.js app: `app/` (pages, route handlers), `lib/db/` (Drizzle
-  schema + client), `lib/hevy/` (API client, catalog cache, sync service),
-  `lib/planner/` (plan schema, candidate filtering, generation).
+- `src/` — the Next.js app: `app/` (pages and server actions), `components/`
+  (shared UI), `lib/db/` (Drizzle schema + client), `lib/hevy/` (API client,
+  catalog cache, sync service), `lib/planner/` (plan schema, split mapping,
+  rule-based and LLM generators, validation, Hevy payload mapping).
+- Tests live beside the code as `*.test.ts` (vitest, `npm test`).
 - `docs/hevy-openapi.json` — pinned copy of the official Hevy OpenAPI spec that the
   client types are checked against.
 - `knowledge/` — an internal Obsidian-vault knowledge wiki used by AI coding agents

@@ -30,7 +30,8 @@ no blockers, findings folded into milestone 2.
 reviewed, one important key-leak finding fixed in milestone 3.
 **DONE: milestone 3** (plan flow — [[plan-generation]], [[hevy-sync]]).
 **DONE: milestone 4** (dashboard home page).
-**NEXT: milestone 5** — lint/cleanup pass over the bootstrap pages.
+**DONE: milestone 5** (cleanup pass).
+**NEXT: milestone 6 (optional)** — `output: 'standalone'` + Dockerfile.
 
 ## State reached
 - Work happens on git worktree branch `worktree-e2e-build`, branched from `dev` at
@@ -57,8 +58,13 @@ reviewed, one important key-leak finding fixed in milestone 3.
   a route handler as [[plan-pipeline]] specifies. Deliberate simplification;
   progressive preview is still open work. Recorded in [[plan-generation]].
 - Editing is preview-only: the "minimal-plus" swap-exercise and set/rep/rest
-  tweaks from [[plan-pipeline]] are not built yet. `searchTemplates` and
-  `getTemplateById` already exist for the picker.
+  tweaks from [[plan-pipeline]] are not built yet.
+- Exports that exist and are tested but nothing in the app calls YET, kept
+  deliberately as the surface those features need — reviewers keep spotting
+  them, so recording the decision here: `searchTemplates`, `getTemplateById`,
+  `getAvailableEquipment` (for the swap-exercise picker) and
+  `getWeightUnit` / `setWeightUnit` (for the lbs display toggle). If either
+  feature gets dropped, delete the matching accessors with it.
 - VPS vendor undecided; decision deferred until first deploy.
 
 ## Next steps

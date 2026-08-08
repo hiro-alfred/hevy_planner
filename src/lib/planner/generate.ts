@@ -121,9 +121,16 @@ async function generateWithLlm(
 export async function generatePlan(request: PlanRequest): Promise<GenerateResult> {
   const days = await loadDayCandidates(request);
 
-  if (days.every((day) => day.candidates.length === 0)) {
+  // ANY unfillable day is fatal, not just all of them. A single empty day
+  // produces a day with no exercises, which sync would push to Hevy as an
+  // empty routine — permanently consuming part of a capped, delete-less
+  // resource. Better to refuse here with something the user can act on.
+  const unfillable = days.filter((day) => day.candidates.length === 0);
+  if (unfillable.length > 0) {
+    const titles = unfillable.map((day) => day.template.title).join(", ");
     throw new UserFacingError(
-      "No exercises match this request. Refresh the exercise catalog on the settings page, or widen the equipment selection.",
+      `No exercises in the catalog match ${unfillable.length === days.length ? "this request" : `these training days: ${titles}`}. ` +
+        `Widen the equipment selection, or refresh the exercise catalog on the settings page.`,
     );
   }
 
@@ -138,14 +145,18 @@ export async function generatePlan(request: PlanRequest): Promise<GenerateResult
     };
   };
 
-  if (!getLlmConfig()) return buildFallback();
-
   try {
+    // getLlmConfig() is inside the try on purpose: a misconfigured provider
+    // (key set but an unknown LLM_PROVIDER, or no model for it) throws, and
+    // that must fall back to the rules like any other provider failure rather
+    // than failing the whole request.
+    if (!getLlmConfig()) return await buildFallback();
+
     const { plan, violations } = await generateWithLlm(request, days);
     return { plan, source: "llm", violations };
   } catch {
     // The provider's own error text is not repeated to the user: it can carry
     // request internals, and there is nothing actionable in it here.
-    return buildFallback("The LLM provider was unreachable, so the built-in generator was used.");
+    return buildFallback("The LLM provider could not be used, so the built-in generator was.");
   }
 }

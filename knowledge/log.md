@@ -69,3 +69,22 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   component cannot CALL a function exported from a `"use client"` module —
   `buttonClasses` moved to `src/components/button-styles.ts`. Noted in
   [[testing-setup]]; every route now curl-checked against `next start`.
+- 2026-08-08 — milestone 5 (cleanup): unused create-next-app SVGs deleted,
+  `.env.example` and README corrected (LLM_MODEL documented; all three LLM vars
+  marked optional, since the app generates plans without any of them). Verified
+  no inline styles, no file over 300 lines, no TODOs, no stray logging.
+  Deliberately-unused-but-planned exports recorded in [[hot]] rather than
+  deleted, so review passes stop re-flagging them.
+- 2026-08-08 — milestone 3 review (Fable, 4bd98b7): key-leak fix confirmed
+  closed, Hevy write schema confirmed correct, but TWO important write-path
+  bugs found and fixed immediately ([[hevy-sync]]). (1) The folder id lived only
+  on `sync_links`, which is written only after a routine create succeeds — so a
+  first sync whose first create 403'd lost it and the retry created a second,
+  undeletable folder. Folder id moved to the plans row (migration 0001), written
+  the moment the folder is created. (2) A single training day with no candidates
+  produced an empty day that sync would have pushed as an empty routine, burning
+  routine-cap quota permanently; generation now aborts on ANY unfillable day and
+  sync refuses empty days before its first API call. Also added
+  `UNIQUE(plan_id, day_index)`, a `staleRoutines` warning for plans that shrank,
+  and moved `getLlmConfig()` inside the try so a misconfigured provider falls
+  back to the rules. 57 tests; migration verified applying to an existing DB.
