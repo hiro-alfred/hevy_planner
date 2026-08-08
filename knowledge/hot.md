@@ -53,12 +53,13 @@ a reboot**.
 - **Unproven: the live Hevy write path.** Sync has only ever run against a stub,
   and it is irreversible — no DELETE endpoint, plus a routine cap
   ([[hevy-api]]). The first real sync must be a 2-day plan.
-- **Uncommitted UI work is sitting in the tree and is NOT mine.** `hud.css`,
-  `animations.css`, `hud-backdrop.tsx`, `pointer-glow.tsx`,
-  `reveal-observer.tsx` (~890 new lines) plus a modified `globals.css` appeared
-  during the session; the tree was clean at its start. Left untouched and
-  uncommitted deliberately. Two things to raise with the owner: whose it is, and
-  that `hud.css` at 461 lines breaks the 300-line rule in CLAUDE.md.
+- **Uncommitted UI work in the tree is the owner's, in progress — leave it
+  alone.** A HUD/animation layer (`hud.css`, `animations.css`,
+  `hud-backdrop.tsx`, `pointer-glow.tsx`, `reveal-observer.tsx`, `count-up.tsx`,
+  `stat-tile.tsx`, `status-chip.tsx` plus edits across the pages and
+  `globals.css`). Do not commit, revert or refactor it, and do not re-flag it.
+  One thing to mention only if it comes up: `hud.css` is 461 lines, over the
+  300-line rule in CLAUDE.md.
 - **`data/` still holds the pre-migration SQLite file, which likely contains the
   Hevy key IN PLAINTEXT.** Gitignored, not deleted — the owner's data, their
   call. Flagged three times now.
