@@ -3,22 +3,44 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { settings } from "@/lib/db/schema";
 import { UserFacingError } from "@/lib/errors";
+import { decryptSecret, encryptSecret, encryptionEnabled, isEncrypted } from "@/lib/secret-box";
 
 // Typed accessors over the settings key-value table.
 //
-// SECURITY: the Hevy API key is the one secret this app holds. It is stored in
-// plaintext by decision (encryption at rest is theater on a single-user box —
-// see knowledge/decisions/plan-pipeline.md), so the protections that DO matter
-// are enforced here:
+// SECURITY: the Hevy API key is the one secret this app holds. Four protections
+// apply, and they cover different attackers:
 //   - "server-only" import: this module can never be pulled into a client bundle
 //   - the raw key is never returned to a React component; UI code gets
 //     HevyKeyStatus (a boolean + last 4 chars) instead
 //   - the key is never logged, and never interpolated into an error message
+//   - it is encrypted at rest with AES-256-GCM (see lib/secret-box.ts)
+//
+// On that last one: it was originally stored in plaintext, on the argument that
+// encryption is theatre when the database file sits on the app's own disk.
+// Moving to MariaDB invalidated that argument — dumps, backups and snapshots
+// now travel independently of the host, so a database-only compromise is a real
+// and separate event. It still does NOT defend against owning the app host.
 
 export const SETTING_KEYS = {
   hevyApiKey: "hevy_api_key",
   weightUnit: "weight_unit",
 } as const;
+
+/** Settings encrypted at rest. Non-secrets stay readable in a dump on purpose. */
+const SECRET_KEYS = new Set<string>([SETTING_KEYS.hevyApiKey]);
+
+/** Warn once per process rather than on every read. */
+let warnedAboutPlaintext = false;
+
+function warnIfUnencrypted(): void {
+  if (encryptionEnabled() || warnedAboutPlaintext) return;
+  warnedAboutPlaintext = true;
+  console.warn(
+    "[settings] SETTINGS_ENCRYPTION_KEY is not set — the Hevy API key is being stored " +
+      "in PLAINTEXT. Anyone with a database dump can read it. Generate a key with: " +
+      `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`,
+  );
+}
 
 async function getSetting(key: string): Promise<string | null> {
   const [row] = await db
@@ -26,17 +48,61 @@ async function getSetting(key: string): Promise<string | null> {
     .from(settings)
     .where(eq(settings.key, key))
     .limit(1);
-  return row?.value ?? null;
+  if (!row) return null;
+  return SECRET_KEYS.has(key) ? decryptSecret(row.value, key) : row.value;
 }
 
 async function setSetting(key: string, value: string): Promise<void> {
+  if (SECRET_KEYS.has(key)) warnIfUnencrypted();
+  const stored = SECRET_KEYS.has(key) ? encryptSecret(value, key) : value;
+
   // MySQL/MariaDB upsert. There is no conflict target to name: the clause fires
   // on any unique-key collision, which for this table is only the primary key.
   const updatedAt = new Date().toISOString();
   await db
     .insert(settings)
-    .values({ key, value, updatedAt })
-    .onDuplicateKeyUpdate({ set: { value, updatedAt } });
+    .values({ key, value: stored, updatedAt })
+    .onDuplicateKeyUpdate({ set: { value: stored, updatedAt } });
+}
+
+/**
+ * Re-encrypts any secret still sitting in the table as plaintext.
+ *
+ * Turning encryption on must not invalidate a key the user already entered, so
+ * plaintext rows are read normally (see decryptSecret) and upgraded here, once,
+ * at boot. `updated_at` is deliberately preserved: the value did not change,
+ * only its representation, and moving the timestamp would tell the user their
+ * key was touched when it was not.
+ *
+ * Safe to run on every boot — encrypted rows are skipped, and with no key
+ * configured it does nothing at all.
+ */
+export async function migrateSecretsToEncrypted(): Promise<number> {
+  if (!encryptionEnabled()) {
+    warnIfUnencrypted();
+    return 0;
+  }
+
+  let upgraded = 0;
+  for (const key of SECRET_KEYS) {
+    const [row] = await db
+      .select({ value: settings.value, updatedAt: settings.updatedAt })
+      .from(settings)
+      .where(eq(settings.key, key))
+      .limit(1);
+    if (!row || isEncrypted(row.value)) continue;
+
+    await db
+      .update(settings)
+      .set({ value: encryptSecret(row.value, key), updatedAt: row.updatedAt })
+      .where(eq(settings.key, key));
+    upgraded += 1;
+  }
+
+  if (upgraded > 0) {
+    console.log(`[settings] encrypted ${upgraded} stored secret(s) that were plaintext.`);
+  }
+  return upgraded;
 }
 
 async function deleteSetting(key: string): Promise<void> {
@@ -51,7 +117,15 @@ async function deleteSetting(key: string): Promise<void> {
  * changing it in the UI takes effect without a redeploy.
  */
 export async function getHevyApiKey(): Promise<string | null> {
-  const stored = await getSetting(SETTING_KEYS.hevyApiKey);
+  let stored: string | null = null;
+  try {
+    stored = await getSetting(SETTING_KEYS.hevyApiKey);
+  } catch (error) {
+    // A wrong or rotated SETTINGS_ENCRYPTION_KEY must not take down every page
+    // that checks for a key. Fall through to the env value, and let the
+    // settings page explain the situation via getHevyKeyStatus.
+    console.error("[settings] could not decrypt the stored Hevy key:", error);
+  }
   if (stored) return stored;
   const fromEnv = process.env.HEVY_API_KEY?.trim();
   return fromEnv ? fromEnv : null;
@@ -78,6 +152,12 @@ export interface HevyKeyStatus {
   /** True when the key comes from HEVY_API_KEY rather than the settings table. */
   fromEnv: boolean;
   updatedAt: string | null;
+  /**
+   * A key IS stored but cannot be read, because SETTINGS_ENCRYPTION_KEY is
+   * missing or no longer matches. Distinct from `configured: false`, which
+   * would send the user looking for a key that is right there.
+   */
+  undecryptable?: boolean;
 }
 
 /** The only shape of key information allowed to reach the UI. */
@@ -89,9 +169,23 @@ export async function getHevyKeyStatus(): Promise<HevyKeyStatus> {
     .limit(1);
 
   if (row?.value) {
+    // Must decrypt before masking: the stored value is ciphertext, and its last
+    // four characters are base64 padding, not the user's key.
+    let plaintext: string;
+    try {
+      plaintext = decryptSecret(row.value, SETTING_KEYS.hevyApiKey);
+    } catch {
+      return {
+        configured: false,
+        last4: null,
+        fromEnv: false,
+        updatedAt: row.updatedAt,
+        undecryptable: true,
+      };
+    }
     return {
       configured: true,
-      last4: maskLast4(row.value),
+      last4: maskLast4(plaintext),
       fromEnv: false,
       updatedAt: row.updatedAt,
     };

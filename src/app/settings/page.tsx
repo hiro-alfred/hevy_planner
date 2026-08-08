@@ -45,6 +45,13 @@ export default async function SettingsPage() {
                   <span className="text-emerald-600 dark:text-emerald-400">
                     Set ✓ · ····{keyStatus.last4}
                   </span>
+                ) : keyStatus.undecryptable ? (
+                  // Not the same as "no key": one is stored, but the encryption
+                  // key that wrote it is gone or changed. Saying "Not
+                  // configured" would send the user hunting for a missing key.
+                  <span className="text-amber-600 dark:text-amber-400">
+                    Stored but unreadable — SETTINGS_ENCRYPTION_KEY does not match
+                  </span>
                 ) : (
                   <span className="opacity-70">Not configured</span>
                 )}

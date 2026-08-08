@@ -174,3 +174,22 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   unexpected errors are logged server-side so the next one needs no harness.
   Verified against the live API: 452 cached, all 9 equipment categories, 6
   assisted/weighted lat exercises now candidates where there were 0. 67 tests.
+- 2026-08-08 — **Encrypted the Hevy key at rest** (AES-256-GCM,
+  `src/lib/secret-box.ts`), reversing the plaintext decision in
+  [[plan-pipeline]] at the owner's request. The original reasoning was not
+  wrong, it was scoped to a premise that [[mariadb-migration]] removed: with a
+  database file on the app's own disk, DB compromise really was a subset of host
+  compromise. With MariaDB, dumps and backups travel on their own, so the
+  database-only case is real and this is what covers it. Stated the limit in
+  code, README and [[key-handling]] rather than overselling: the key lives in
+  the app host's environment, so host compromise still yields both halves.
+  Hashing was never an option — the credential must be replayed to Hevy, not
+  merely verified. Details worth remembering: the setting key is GCM additional
+  authenticated data so a ciphertext cannot be moved between rows; a plaintext
+  row still reads, and `migrateSecretsToEncrypted()` upgrades it at boot
+  preserving `updated_at`; `getHevyKeyStatus` had to decrypt before masking or
+  the UI would have shown the last 4 chars of base64; a wrong/rotated key
+  reports `undecryptable` rather than "not configured", so the user re-enters
+  instead of hunting. Verified on the live box: existing key upgraded in place
+  ("encrypted 1 stored secret(s)"), row now `enc:v1:…`, app still works.
+  82 tests.

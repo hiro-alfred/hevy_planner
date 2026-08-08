@@ -8,6 +8,9 @@ let settingsModule: typeof import("./settings");
 
 const KEY = "11111111-2222-3333-4444-5555abcd";
 
+// Exercise the encrypted path by default — that is what a deployment runs.
+process.env.SETTINGS_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
+
 beforeAll(async () => {
   await database.migrate();
   settingsModule = await import("./settings");
@@ -20,6 +23,63 @@ beforeEach(async () => {
   const { settings } = await import("@/lib/db/schema");
   await db.delete(settings);
   delete process.env.HEVY_API_KEY;
+});
+
+describe("encryption at rest", () => {
+  it("never writes the key to the table in the clear", async () => {
+    const { db } = await import("@/lib/db/client");
+    const { settings } = await import("@/lib/db/schema");
+    await settingsModule.setHevyApiKey(KEY);
+
+    const [row] = await db.select().from(settings);
+    expect(row!.value).not.toContain(KEY);
+    expect(row!.value.startsWith("enc:v1:")).toBe(true);
+    // ...and it still round-trips.
+    expect(await settingsModule.getHevyApiKey()).toBe(KEY);
+  });
+
+  it("masks the real key, not the ciphertext", async () => {
+    await settingsModule.setHevyApiKey(KEY);
+    expect((await settingsModule.getHevyKeyStatus()).last4).toBe(KEY.slice(-4));
+  });
+
+  it("upgrades a plaintext key written before encryption was enabled", async () => {
+    const { db } = await import("@/lib/db/client");
+    const { settings } = await import("@/lib/db/schema");
+    const writtenAt = "2026-01-01T00:00:00.000Z";
+    await db.insert(settings).values({ key: "hevy_api_key", value: KEY, updatedAt: writtenAt });
+
+    // Readable before the upgrade, so enabling encryption is non-destructive.
+    expect(await settingsModule.getHevyApiKey()).toBe(KEY);
+
+    expect(await settingsModule.migrateSecretsToEncrypted()).toBe(1);
+
+    const [row] = await db.select().from(settings);
+    expect(row!.value.startsWith("enc:v1:")).toBe(true);
+    // The value did not change, only its representation.
+    expect(row!.updatedAt).toBe(writtenAt);
+    expect(await settingsModule.getHevyApiKey()).toBe(KEY);
+
+    // Idempotent.
+    expect(await settingsModule.migrateSecretsToEncrypted()).toBe(0);
+  });
+
+  it("reports a stored-but-unreadable key distinctly from no key", async () => {
+    const { db } = await import("@/lib/db/client");
+    const { settings } = await import("@/lib/db/schema");
+    await db.insert(settings).values({
+      key: "hevy_api_key",
+      // Well-formed envelope, wrong key — what a rotated secret looks like.
+      value: "enc:v1:" + [12, 16, 32].map((n) => Buffer.alloc(n, 9).toString("base64")).join(":"),
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const status = await settingsModule.getHevyKeyStatus();
+    expect(status.undecryptable).toBe(true);
+    expect(status.configured).toBe(false);
+    // Must not crash the pages that merely check for a key.
+    expect(await settingsModule.getHevyApiKey()).toBeNull();
+  });
 });
 
 describe("hevy api key", () => {

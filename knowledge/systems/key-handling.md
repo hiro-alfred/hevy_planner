@@ -5,16 +5,52 @@ tags: [subsystem, security, settings, hevy]
 type: subsystem
 created: 2026-08-08
 updated: 2026-08-08
-sources: [src/lib/settings.ts, src/lib/hevy/session.ts, src/app/settings/actions.ts, src/app/settings/page.tsx, src/lib/settings.test.ts]
+sources: [src/lib/settings.ts, src/lib/secret-box.ts, src/lib/hevy/session.ts, src/app/settings/actions.ts, src/app/settings/page.tsx, src/lib/settings.test.ts, src/lib/secret-box.test.ts]
 ---
 
 # Key handling
 
-The Hevy API key is the only secret this app holds. It is stored **in plaintext**
-in the `settings` table — a decision, not an oversight: on a single-user box the
-decryption key would sit beside the database, so encryption at rest buys nothing
-([[plan-pipeline]]). The protections that actually hold are structural, and they
-live in `src/lib/settings.ts`.
+The Hevy API key is the only secret this app holds. It is **encrypted at rest**
+(AES-256-GCM, `src/lib/secret-box.ts`) and guarded by four structural barriers
+in `src/lib/settings.ts` that keep it off the client.
+
+## Encryption at rest
+
+Originally plaintext, on the reasoning that a decryption key sitting beside the
+database file buys nothing ([[plan-pipeline]]). [[mariadb-migration]] broke that
+premise: dumps, backups and snapshots now travel independently of the host, so a
+**database-only compromise became a real and separate event**. That is exactly
+the case envelope encryption covers, so the decision was reversed.
+
+- Key from `SETTINGS_ENCRYPTION_KEY`, 32 bytes, base64 or hex. A wrong length is
+  rejected rather than padded.
+- Stored form is `enc:v1:<iv>:<tag>:<ciphertext>`, all base64. The prefix makes
+  plaintext obvious in a dump and makes the upgrade path detectable.
+- The setting key is passed as GCM **additional authenticated data**, so a
+  ciphertext cannot be moved between settings rows and still open.
+- Only keys in `SECRET_KEYS` are encrypted; `weight_unit` stays readable on
+  purpose.
+- **Non-destructive upgrade.** A plaintext row still decrypts (it is returned
+  as-is), and `migrateSecretsToEncrypted()` runs at boot from
+  `src/instrumentation.ts` to re-encrypt it, preserving `updated_at` — the value
+  did not change, only its representation.
+
+> [!warning] What this does NOT protect
+> The encryption key lives in the app host's environment, so anyone who owns
+> that host has both halves. This defends the database leaving the host, nothing
+> more. Claiming otherwise would be theatre — the same objection that justified
+> plaintext originally, now correctly scoped rather than dismissed.
+
+> [!note] Why not hash it
+> A password is only ever *verified*, so it can be hashed. This key must be
+> *replayed* to Hevy on every request, so it has to be reversible. bcrypt/argon2
+> are simply not applicable to third-party credentials.
+
+Losing or rotating the key does not crash the app: `getHevyKeyStatus()` reports
+`undecryptable: true`, distinct from "not configured", and the settings page
+says "Stored but unreadable" so the user re-enters rather than hunting for a key
+that is sitting right there. `getHevyApiKey()` logs and falls back to the env
+value instead of throwing on every page that checks for a key.
 
 ## The four barriers
 

@@ -145,7 +145,7 @@ describe("refreshCatalog", () => {
     delete (broken as Record<string, unknown>).equipment;
 
     await expect(catalog.refreshCatalog(stubClient([[broken]]).client)).rejects.toThrow(
-      /no "equipment".*Mystery Lift|Mystery Lift.*no "equipment"/s,
+      /no "equipment".*Mystery Lift/,
     );
     // The check runs before the transaction, so the old cache is untouched.
     expect(await catalog.getCatalogStatus()).toMatchObject({ count: 1 });

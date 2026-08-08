@@ -41,53 +41,64 @@ const REP_BASED_TYPES = [
   "bodyweight_assisted",
 ] as const;
 
-/** Mapped columns the catalog table requires; a missing one must fail loudly. */
-const REQUIRED_COLUMNS = [
+/**
+ * Every column the catalog table requires, paired with the API field it comes
+ * from. Used to report WHICH field vanished when upstream changes shape.
+ */
+const REQUIRED_FIELDS = [
   ["id", "id"],
   ["title", "title"],
   ["type", "type"],
-  ["primaryMuscleGroup", "primary_muscle_group"],
-  ["equipmentCategory", "equipment"],
+  ["primary_muscle_group", "primaryMuscleGroup"],
+  ["equipment", "equipmentCategory"],
 ] as const;
 
+/**
+ * Maps one template, refusing anything the table cannot store.
+ *
+ * The refusal is not defensive padding — it is a fix for a real outage. The
+ * pinned spec calls the equipment field `equipment_category`; the live API
+ * sends `equipment`. Reading the spec's name yielded `undefined` on all 452
+ * templates, drizzle turned each into `DEFAULT`, and the NOT NULL column
+ * rejected the insert with an opaque `ER_NO_DEFAULT_FOR_FIELD` two seconds in,
+ * naming nothing a reader would recognise.
+ *
+ * Throwing HERE rather than after the mapping is what keeps `equipmentCategory`
+ * typed as `string` instead of `string | undefined` — so the same class of bug
+ * becomes a compile error in any future column, not a runtime surprise.
+ * Mapping happens before the transaction opens, so a bad response leaves the
+ * existing cache untouched.
+ */
 function toRow(t: HevyExerciseTemplate, fetchedAt: string) {
-  return {
+  // The live API sends `equipment`; the spec says `equipment_category`. Accept
+  // either, so this survives Hevy conforming to their own spec later.
+  const equipmentCategory = t.equipment ?? t.equipment_category;
+
+  const resolved = {
     id: t.id,
     title: t.title,
     type: t.type,
     primaryMuscleGroup: t.primary_muscle_group,
-    secondaryMuscleGroups: t.secondary_muscle_groups ?? [],
-    // The live API sends `equipment`; the pinned spec calls it
-    // `equipment_category`. Accept either — see HevyExerciseTemplate.
-    equipmentCategory: t.equipment ?? t.equipment_category,
-    isCustom: t.is_custom ?? false,
-    fetchedAt,
+    equipmentCategory,
   };
-}
 
-/**
- * Rejects a response whose shape the catalog table cannot store.
- *
- * Exists because of a real failure: the API renamed `equipment_category` to
- * `equipment`, so the value was `undefined` on every row. Drizzle turns an
- * undefined into `DEFAULT`, and the column is NOT NULL with no default, so the
- * whole refresh died on an opaque `ER_NO_DEFAULT_FOR_FIELD` two seconds in —
- * naming no field the reader would recognise. A shape check here turns the next
- * upstream rename into a message that says which field vanished.
- */
-function assertStorable(rows: ReturnType<typeof toRow>[]): void {
-  // Validates the MAPPED rows, not the raw payload: rows are de-duplicated, so
-  // an index into one does not address the other.
-  for (const [column, apiField] of REQUIRED_COLUMNS) {
-    const bad = rows.find((r) => r[column] == null);
-    if (bad) {
+  for (const [apiField, column] of REQUIRED_FIELDS) {
+    if (resolved[column] == null) {
       throw new UserFacingError(
-        `Hevy returned an exercise with no "${apiField}" (id ${bad.id ?? "unknown"}, ` +
-          `title ${bad.title ?? "unknown"}). The API shape has changed, so the catalog was ` +
+        `Hevy returned an exercise with no "${apiField}" (id ${t.id ?? "unknown"}, ` +
+          `title ${t.title ?? "unknown"}). The API shape has changed, so the catalog was ` +
           `left unchanged. This needs a code fix.`,
       );
     }
   }
+
+  return {
+    ...resolved,
+    equipmentCategory: equipmentCategory!,
+    secondaryMuscleGroups: t.secondary_muscle_groups ?? [],
+    isCustom: t.is_custom ?? false,
+    fetchedAt,
+  };
 }
 
 /**
@@ -132,10 +143,6 @@ export async function refreshCatalog(client: HevyClient): Promise<number> {
       "Hevy returned no exercise templates; the cached catalog was left unchanged.",
     );
   }
-
-  // Checked before the transaction opens, so a shape change leaves the existing
-  // cache intact rather than emptying it and then failing on the insert.
-  assertStorable(rows, templates);
 
   // Clear-then-insert, not upsert-then-prune-by-timestamp: two refreshes inside
   // the same millisecond share a fetchedAt, which would make a timestamp-based

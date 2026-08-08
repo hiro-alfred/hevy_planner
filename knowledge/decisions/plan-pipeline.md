@@ -59,11 +59,16 @@ streaming). Modules: `lib/db/`, `lib/hevy/` (client + catalog + sync),
 - **Edit scope: minimal-plus.** Swap-exercise (catalog picker) + per-exercise
   set-count/rep-range/rest tweaks. No reorder/add/remove-day/free-form editor in
   phase 1; "regenerate" covers structural dissatisfaction.
-- **Hevy key: plaintext in `settings` table.** Encryption at rest is theater on a
-  single-user box (decryption key would sit beside the DB). Real protections:
-  key never sent to client (UI shows "set ✓ · ····last4"), never logged, DB file
-  app-user-only, deployment behind an auth gate (e.g. Cloudflare Access).
-  Re-decide at phase 2 multi-user.
+- **Hevy key: encrypted at rest in the `settings` table.** ~~Plaintext;
+  encryption at rest is theater on a single-user box (decryption key would sit
+  beside the DB).~~ **SUPERSEDED 2026-08-08.** That held while the database was
+  a file on the app's own disk. [[mariadb-migration]] made dumps, backups and
+  snapshots travel independently of the host, so a database-only compromise is
+  now a distinct event worth defending — AES-256-GCM under
+  `SETTINGS_ENCRYPTION_KEY`, details in [[key-handling]]. Unchanged protections:
+  key never sent to client (UI shows "set ✓ · ····last4"), never logged,
+  deployment behind an auth gate (e.g. Cloudflare Access). Still does not defend
+  against host compromise. Re-decide at phase 2 multi-user.
 - **Units: kg is the default and the only internal unit** (matches `weight_kg` in
   [[hevy-api]]). lbs is a display-only opt-in via settings; conversion happens in
   UI components, nowhere else.

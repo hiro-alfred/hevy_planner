@@ -38,6 +38,10 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: mysql://hevy:${MARIADB_PASSWORD:-hevy}@db:3306/hevy_planner
+      # Encrypts the stored Hevy key at rest. Deliberately has NO default: an
+      # empty value means plaintext in the database volume and in every dump
+      # taken from it, and a shared fallback secret would be worse than none.
+      SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY:?set SETTINGS_ENCRYPTION_KEY in .env - see .env.example}
       # Optional bootstrap key; the settings page is the normal way to set it.
       HEVY_API_KEY: ${HEVY_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}

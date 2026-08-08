@@ -101,6 +101,13 @@ user pastes their key there, it is submitted to a server action, and stored and 
 server-side only — it is never exposed back to the browser or used client-side. The UI
 only ever sees whether a key is set plus its last four characters.
 
+The key is **encrypted at rest** with AES-256-GCM under `SETTINGS_ENCRYPTION_KEY`, so a
+database dump, backup, or snapshot does not reveal it. Note the limit honestly: the
+encryption key lives in the app's environment, so this protects against a
+database-only compromise, not against someone who owns the app host. Hashing is not an
+option here — unlike a password, the key must be replayed to Hevy on every request and
+therefore has to be reversible.
+
 `.env` remains available for local/deployment-level configuration and is **never
 committed**. `.env.example` documents the expected variables:
 
@@ -110,6 +117,7 @@ committed**. `.env.example` documents the expected variables:
 | `LLM_PROVIDER` | *(optional)* LLM provider for plan generation. Defaults to `anthropic` |
 | `LLM_MODEL` | *(optional)* Model id for that provider. Defaults to `claude-opus-5` |
 | `LLM_API_KEY` | *(optional)* API key for the configured provider. **Without it the app still works** — plans come from the deterministic built-in generator instead |
+| `SETTINGS_ENCRYPTION_KEY` | 32-byte base64/hex key encrypting the stored Hevy key at rest (AES-256-GCM). Strongly recommended — without it the key sits in the database in plaintext. Required by `docker-compose.yml` |
 | `DATABASE_URL` | MariaDB connection string, e.g. `mysql://hevy:pw@db:3306/hevy_planner`. Required in any real deployment; defaults to a localhost dev database |
 | `MARIADB_PASSWORD` | Password for the `hevy` user in the `docker-compose.yml` database container |
 | `MARIADB_ROOT_PASSWORD` | Root password for that same container |
