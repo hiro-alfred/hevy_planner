@@ -41,5 +41,12 @@ export function describeHevyError(
 ): string {
   if (error instanceof HevyApiError) return describeStatus(error.status, context);
   if (error instanceof UserFacingError) return error.message;
+
+  // Reaching here means an error nobody anticipated. The user gets the generic
+  // fallback (rule 1 above), but swallowing it entirely made a real bug
+  // undiagnosable: "Catalog refresh failed." was the only trace of a MariaDB
+  // ER_NO_DEFAULT_FOR_FIELD, and finding it needed a one-off repro harness.
+  // The server log is not the browser, so it may hold the detail.
+  console.error(`[hevy:${context}] unexpected error:`, error);
   return fallback;
 }

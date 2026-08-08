@@ -155,3 +155,22 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   Lesson worth keeping: "the protocol type is wrong" did not imply "the driver
   gets it wrong" — the vendor shipped a compatibility path I had not accounted
   for, and only running it showed that. Still untested: the container path.
+- 2026-08-08 — First real catalog refresh failed; two spec-vs-reality bugs found
+  and fixed. `describeHevyError` showed only "Catalog refresh failed." because
+  the underlying error was neither a HevyApiError nor a UserFacingError, so
+  diagnosis needed a one-off repro harness. The error was MariaDB
+  `ER_NO_DEFAULT_FOR_FIELD` on `equipment_category`: the live API sends
+  **`equipment`**, while the pinned spec declares `equipment_category`, so the
+  value was `undefined` on all 452 templates, drizzle emitted `DEFAULT`, and the
+  NOT NULL column rejected it. Second bug found while diffing live values
+  against `constants.ts`: `REP_BASED_TYPES` had been guessed and listed two
+  types that do not exist (`bodyweight_reps`, `bodyweight_assisted_reps`) while
+  omitting the two that do (`bodyweight_weighted`, `bodyweight_assisted`) — so
+  every assisted pull-up and weighted dip was silently excluded from candidate
+  lists. Both recorded as traps in [[hevy-api]]. Root cause of both: the stub
+  client was written from the spec, so the suite validated the spec rather than
+  the API — green tests, broken product. Fixtures now match observed payloads,
+  `assertStorable` fails before the transaction naming the missing field, and
+  unexpected errors are logged server-side so the next one needs no harness.
+  Verified against the live API: 452 cached, all 9 equipment categories, 6
+  assisted/weighted lat exercises now candidates where there were 0. 67 tests.

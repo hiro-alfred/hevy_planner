@@ -45,7 +45,18 @@ export interface HevyExerciseTemplate {
   type: string;
   primary_muscle_group: string;
   secondary_muscle_groups: string[];
-  equipment_category: string;
+  /**
+   * The equipment enum value.
+   *
+   * THE PINNED SPEC IS WRONG HERE. docs/hevy-openapi.json declares this property
+   * as `equipment_category`, but the live API sends `equipment` — verified
+   * against all 452 templates on a real account, none of which carried
+   * `equipment_category`. Trusting the spec made this `undefined` for every row,
+   * which the catalog write then failed on. See knowledge/concepts/hevy-api.md.
+   */
+  equipment?: string;
+  /** Only if Hevy ever ships the spec's name; never seen in practice. */
+  equipment_category?: string;
   is_custom: boolean;
 }
 

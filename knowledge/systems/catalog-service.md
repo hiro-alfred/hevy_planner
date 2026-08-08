@@ -56,7 +56,7 @@ to ONE SQL query:
   `JSON_CONTAINS(secondary_muscle_groups, JSON_QUOTE(?))`, one probe per
   requested group (the column is a JSON array)
 - type → restricted to the four rep-based types by default
-  (`weight_reps`, `reps_only`, `bodyweight_reps`, `bodyweight_assisted_reps`),
+  (`weight_reps`, `reps_only`, `bodyweight_weighted`, `bodyweight_assisted`),
   because every set in the plan model is a rep range; duration/distance
   templates would generate nonsense sets
 - ordering → primary-muscle matches first, then built-ins before customs, so a
@@ -95,6 +95,15 @@ no endpoint that lists them.
   form breaks under `NO_BACKSLASH_ESCAPES` instead. `!` means the same thing in
   every `sql_mode`, and `searchTemplates` escapes `!`, `%`, and `_` in the user's
   input to match.
+
+- **The stub client was built from the pinned spec, so it lied.** Fixtures used
+  `equipment_category` and invented `bodyweight_*_reps` types; the live API
+  sends `equipment` and different type values ([[hevy-api]]). Result: 63 green
+  tests and a refresh that failed on every real account. `toRow` now accepts
+  either field name, and `assertStorable` runs BEFORE the transaction so an
+  upstream rename names the missing field instead of surfacing as MariaDB's
+  `ER_NO_DEFAULT_FOR_FIELD` (drizzle turns an `undefined` into `DEFAULT`, and
+  the column is NOT NULL with no default).
 
 Covered by `src/lib/hevy/catalog.test.ts` (vitest, throwaway MariaDB database +
 a stub client) — see [[testing-setup]].

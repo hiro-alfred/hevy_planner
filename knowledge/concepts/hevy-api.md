@@ -64,6 +64,28 @@ test empirically.
 
 ## Known traps
 
+> [!warning] The pinned spec is not the API — two fields verified wrong
+> `docs/hevy-openapi.json` is the official spec, but it disagrees with the live
+> service on `exercise_templates`. Both were caught only by calling the real API
+> with a real key (2026-08-08, 452 templates on the owner's account):
+>
+> 1. **`equipment_category` does not exist; the field is `equipment`.** The spec
+>    declares `equipment_category` with an `EquipmentCategory` `$ref`. Every one
+>    of the 452 live templates carried `equipment` instead and no
+>    `equipment_category` at all. The value set itself matches the spec enum
+>    exactly (`barbell, dumbbell, kettlebell, machine, none, other, plate,
+>    resistance_band, suspension`) — only the property name is wrong.
+> 2. **The `type` values are not what the naming pattern suggests.** Live set:
+>    `weight_reps, reps_only, bodyweight_weighted, bodyweight_assisted,
+>    duration, distance_duration, floors_duration, steps_duration,
+>    short_distance_weight`. There is no `bodyweight_reps` and no
+>    `bodyweight_assisted_reps`; [[catalog-service]] had guessed both.
+>
+> Lesson: treat the pinned spec as a starting hypothesis for response shapes,
+> not as truth, and pin fixtures to observed payloads. A stub built from the
+> spec makes the suite agree with the spec and disagree with reality — which is
+> exactly what happened; 63 tests were green while every real refresh failed.
+
 - Write field `superset_id`, read field `supersets_id` (plural) — normalize in the
   adapter or round-trips corrupt supersets.
 - `POST /v1/routines` → 403 "Routine limit exceeded" (cap undocumented). With no

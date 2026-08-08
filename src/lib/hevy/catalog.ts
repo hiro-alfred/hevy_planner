@@ -24,11 +24,30 @@ const INSERT_CHUNK = 100;
 // Set types that a sets × reps plan can express (planner/schema.ts models every
 // set as a rep range). Duration/distance templates would produce nonsense sets,
 // so they are excluded from candidate lists unless explicitly asked for.
+//
+// These are the values the LIVE API actually returns, confirmed against a real
+// account's full 452-template library. The first version of this list was
+// guessed from the naming pattern and contained two types that do not exist
+// ("bodyweight_reps", "bodyweight_assisted_reps") while omitting the two that
+// do — so every assisted pull-up and every weighted dip was silently excluded
+// from candidate lists. The full live set is:
+//   rep-based : weight_reps, reps_only, bodyweight_weighted, bodyweight_assisted
+//   not       : duration, distance_duration, floors_duration, steps_duration,
+//               short_distance_weight
 const REP_BASED_TYPES = [
   "weight_reps",
   "reps_only",
-  "bodyweight_reps",
-  "bodyweight_assisted_reps",
+  "bodyweight_weighted",
+  "bodyweight_assisted",
+] as const;
+
+/** Mapped columns the catalog table requires; a missing one must fail loudly. */
+const REQUIRED_COLUMNS = [
+  ["id", "id"],
+  ["title", "title"],
+  ["type", "type"],
+  ["primaryMuscleGroup", "primary_muscle_group"],
+  ["equipmentCategory", "equipment"],
 ] as const;
 
 function toRow(t: HevyExerciseTemplate, fetchedAt: string) {
@@ -38,10 +57,37 @@ function toRow(t: HevyExerciseTemplate, fetchedAt: string) {
     type: t.type,
     primaryMuscleGroup: t.primary_muscle_group,
     secondaryMuscleGroups: t.secondary_muscle_groups ?? [],
-    equipmentCategory: t.equipment_category,
+    // The live API sends `equipment`; the pinned spec calls it
+    // `equipment_category`. Accept either — see HevyExerciseTemplate.
+    equipmentCategory: t.equipment ?? t.equipment_category,
     isCustom: t.is_custom ?? false,
     fetchedAt,
   };
+}
+
+/**
+ * Rejects a response whose shape the catalog table cannot store.
+ *
+ * Exists because of a real failure: the API renamed `equipment_category` to
+ * `equipment`, so the value was `undefined` on every row. Drizzle turns an
+ * undefined into `DEFAULT`, and the column is NOT NULL with no default, so the
+ * whole refresh died on an opaque `ER_NO_DEFAULT_FOR_FIELD` two seconds in —
+ * naming no field the reader would recognise. A shape check here turns the next
+ * upstream rename into a message that says which field vanished.
+ */
+function assertStorable(rows: ReturnType<typeof toRow>[]): void {
+  // Validates the MAPPED rows, not the raw payload: rows are de-duplicated, so
+  // an index into one does not address the other.
+  for (const [column, apiField] of REQUIRED_COLUMNS) {
+    const bad = rows.find((r) => r[column] == null);
+    if (bad) {
+      throw new UserFacingError(
+        `Hevy returned an exercise with no "${apiField}" (id ${bad.id ?? "unknown"}, ` +
+          `title ${bad.title ?? "unknown"}). The API shape has changed, so the catalog was ` +
+          `left unchanged. This needs a code fix.`,
+      );
+    }
+  }
 }
 
 /**
@@ -86,6 +132,10 @@ export async function refreshCatalog(client: HevyClient): Promise<number> {
       "Hevy returned no exercise templates; the cached catalog was left unchanged.",
     );
   }
+
+  // Checked before the transaction opens, so a shape change leaves the existing
+  // cache intact rather than emptying it and then failing on the insert.
+  assertStorable(rows, templates);
 
   // Clear-then-insert, not upsert-then-prune-by-timestamp: two refreshes inside
   // the same millisecond share a fetchedAt, which would make a timestamp-based
