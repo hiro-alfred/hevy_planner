@@ -2,6 +2,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { settings } from "@/lib/db/schema";
+import { UserFacingError } from "@/lib/errors";
 
 // Typed accessors over the settings key-value table.
 //
@@ -56,9 +57,23 @@ export async function getHevyApiKey(): Promise<string | null> {
   return fromEnv ? fromEnv : null;
 }
 
+/**
+ * A key must be printable ASCII with no whitespace.
+ *
+ * Not cosmetic: an interior newline makes the fetch layer reject the header
+ * with the whole value quoted in the exception message. Refusing the value here
+ * means that message can never be produced in the first place.
+ */
+const KEY_PATTERN = /^[\x21-\x7e]+$/;
+
+/** Never reveal the whole secret: a key too short to mask shows nothing. */
+function maskLast4(value: string): string | null {
+  return value.length > 4 ? value.slice(-4) : null;
+}
+
 export interface HevyKeyStatus {
   configured: boolean;
-  /** Last 4 characters, for a "····abcd" display. Null when not configured. */
+  /** Last 4 characters, for a "····abcd" display. Null when not maskable. */
   last4: string | null;
   /** True when the key comes from HEVY_API_KEY rather than the settings table. */
   fromEnv: boolean;
@@ -76,7 +91,7 @@ export async function getHevyKeyStatus(): Promise<HevyKeyStatus> {
   if (row?.value) {
     return {
       configured: true,
-      last4: row.value.slice(-4),
+      last4: maskLast4(row.value),
       fromEnv: false,
       updatedAt: row.updatedAt,
     };
@@ -84,15 +99,32 @@ export async function getHevyKeyStatus(): Promise<HevyKeyStatus> {
 
   const fromEnv = process.env.HEVY_API_KEY?.trim();
   if (fromEnv) {
-    return { configured: true, last4: fromEnv.slice(-4), fromEnv: true, updatedAt: null };
+    return { configured: true, last4: maskLast4(fromEnv), fromEnv: true, updatedAt: null };
   }
   return { configured: false, last4: null, fromEnv: false, updatedAt: null };
 }
 
-export async function setHevyApiKey(key: string): Promise<void> {
+/**
+ * Validates and normalises a submitted key.
+ *
+ * Callers must run this BEFORE handing the value to HevyClient — the point is
+ * to stop a malformed key from ever reaching the fetch layer, which would throw
+ * with the value quoted in its message.
+ */
+export function normalizeHevyApiKey(key: string): string {
   const trimmed = key.trim();
-  if (trimmed === "") throw new Error("API key must not be empty");
-  await setSetting(SETTING_KEYS.hevyApiKey, trimmed);
+  if (trimmed === "") throw new UserFacingError("Enter an API key.");
+  if (!KEY_PATTERN.test(trimmed)) {
+    // Deliberately does not quote the offending value.
+    throw new UserFacingError(
+      "That does not look like an API key — it contains spaces or control characters.",
+    );
+  }
+  return trimmed;
+}
+
+export async function setHevyApiKey(key: string): Promise<void> {
+  await setSetting(SETTING_KEYS.hevyApiKey, normalizeHevyApiKey(key));
 }
 
 /** Removes the stored key. An env-provided key, if any, becomes active again. */

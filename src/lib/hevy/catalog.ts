@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { exerciseTemplates } from "@/lib/db/schema";
+import { UserFacingError } from "@/lib/errors";
 import type { HevyClient } from "./client";
 import type { HevyExerciseTemplate } from "./types";
 
@@ -66,8 +67,8 @@ export async function refreshCatalog(client: HevyClient): Promise<number> {
     if (pageCount > MAX_PAGES) {
       // Stopping at the cap and writing anyway would delete every template
       // living beyond it. A library this large means the API is misbehaving.
-      throw new Error(
-        `Catalog refresh aborted: API reported ${pageCount} pages (max ${MAX_PAGES}); cache left unchanged`,
+      throw new UserFacingError(
+        `Catalog refresh aborted: Hevy reported ${pageCount} pages (max ${MAX_PAGES}); the cache was left unchanged.`,
       );
     }
     page += 1;
@@ -80,7 +81,9 @@ export async function refreshCatalog(client: HevyClient): Promise<number> {
   if (rows.length === 0) {
     // An empty library is far more likely to be an API fault than the truth —
     // replacing the table here would wipe a working cache.
-    throw new Error("Catalog refresh returned no exercise templates; cache left unchanged");
+    throw new UserFacingError(
+      "Hevy returned no exercise templates; the cached catalog was left unchanged.",
+    );
   }
 
   // Clear-then-insert, not upsert-then-prune-by-timestamp: two refreshes inside

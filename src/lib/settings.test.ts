@@ -60,7 +60,33 @@ describe("hevy api key", () => {
   it("trims surrounding whitespace and rejects an empty key", async () => {
     await settingsModule.setHevyApiKey(`  ${KEY}  `);
     expect(await settingsModule.getHevyApiKey()).toBe(KEY);
-    await expect(settingsModule.setHevyApiKey("   ")).rejects.toThrow(/must not be empty/i);
+    await expect(settingsModule.setHevyApiKey("   ")).rejects.toThrow(/enter an api key/i);
+  });
+
+  /**
+   * A key containing a newline makes the fetch layer throw with the WHOLE key
+   * quoted in its message — which a server action would then hand back to the
+   * browser. Rejecting the shape here means that message is never produced.
+   */
+  it("refuses keys that could leak through a header error, without quoting them", async () => {
+    for (const bad of ["abc\ndef", "abc def", "abc\r\ndef", "abc\0def", "abc\tdef"]) {
+      await expect(settingsModule.setHevyApiKey(bad)).rejects.toThrow(
+        /spaces or control characters/i,
+      );
+      // The rejection message must not contain the value it rejected.
+      await settingsModule.setHevyApiKey(bad).catch((error: Error) => {
+        expect(error.message).not.toContain("abc");
+      });
+    }
+    expect(await settingsModule.getHevyApiKey()).toBeNull();
+  });
+
+  it("shows nothing rather than the whole secret when a key is too short to mask", async () => {
+    process.env.HEVY_API_KEY = "abc";
+    expect(await settingsModule.getHevyKeyStatus()).toMatchObject({
+      configured: true,
+      last4: null,
+    });
   });
 
   it("overwrites rather than duplicating on re-save", async () => {

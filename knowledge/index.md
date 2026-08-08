@@ -46,6 +46,10 @@ category. Start here; conventions live in [[schema]].
   DB-backed modules and the Windows install flag.
 - [[key-handling]] — the four barriers that keep the Hevy API key off the client,
   the env fallback, and the settings page surface.
+- [[plan-generation]] — the rule-based and LLM generators behind one entry point,
+  the volume model, and post-validation.
+- [[hevy-sync]] — create-once-then-PUT, content hashing, and why a duplicate
+  routine is unrecoverable.
 
 ## decisions/
 

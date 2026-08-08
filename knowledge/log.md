@@ -47,3 +47,19 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   `src/lib/hevy/session.ts` as the single key path; nav shell added to the
   layout. New [[key-handling]] page. Verified against a running server: the
   stored key appears 0 times in the rendered HTML, only its last 4 do.
+- 2026-08-08 — milestone 2 review (Fable, fbe29d5): one important finding, fixed
+  immediately because milestone 3 was about to copy the pattern — the error
+  helper's `return error.message` fallback could echo the submitted key (a key
+  containing a newline makes the fetch layer throw with the value quoted).
+  Closed by `normalizeHevyApiKey` (shape-check before the fetch layer) plus
+  `src/lib/hevy/errors.ts`, a context-aware translator that only returns
+  status-derived or deliberately-authored text. Also: short keys no longer
+  render in full, and clearHevyKeyAction no longer escapes its transition.
+- 2026-08-08 — milestone 3 (plan flow): split→days, volume model, rule-based
+  generator, LLM path (AI SDK, provider from env, `claude-opus-5` default),
+  post-validation with one retry, `/plans/new` + `/plans/[id]`, and
+  create-once-then-PUT sync. New [[plan-generation]] and [[hevy-sync]] pages.
+  Two real bugs caught by tests: the session-length formula had drifted from
+  the design (dropping the last set's rest), and an exercise-only cap made every
+  60+ minute session fail its own validation. 54 vitest tests; verified against
+  a running server with a seeded 192-exercise catalog (4-day plan, 0 violations).

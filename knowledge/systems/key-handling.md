@@ -32,6 +32,29 @@ live in `src/lib/settings.ts`.
    stored key is never sent to the browser. `type="password"` plus
    `autoComplete="off"` keep it off-screen and out of password managers.
 
+> [!danger] The leak that a rendered-HTML check cannot catch
+> The first version's error helper ended with `return error.message`. A key
+> containing a newline makes the fetch layer reject the header **with the whole
+> key quoted in the exception message**, which then travelled back as an
+> `ActionState` and rendered in the browser. Two changes close it, and both
+> matter: `normalizeHevyApiKey` rejects any key that is not printable non-space
+> ASCII **before** it reaches the fetch layer, and `describeHevyError`
+> (`src/lib/hevy/errors.ts`) only ever returns status-derived text or a
+> deliberately-authored [[key-handling|UserFacingError]] message — an arbitrary
+> `Error.message` is never passed through. That also keeps driver internals
+> (file paths, SQL) out of the UI.
+>
+> Generalise the lesson: a check that greps the happy-path HTML proves nothing
+> about error paths. Errors are the leak channel.
+
+## One translator, context-aware
+
+`describeHevyError(error, context, fallback)` is the only place a thrown value
+becomes user-visible text. It takes a context because the same status means
+different things per call site: 403 on an auth check is a bad key, 403 on a
+routine write is the routine cap ([[hevy-sync]]). Conflating them sends the user
+to re-check a key that was never the problem.
+
 Verified end-to-end against a running server: with a key stored, the rendered
 `/settings` HTML contains the last 4 characters and **zero** occurrences of the
 full key.

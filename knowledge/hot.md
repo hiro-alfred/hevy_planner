@@ -24,8 +24,12 @@ Milestone queue: (1) catalog refresh + candidate filtering, (2) settings page + 
 key action, (3) plan form → generate → preview → sync, (4) dashboard home,
 (5) lint/cleanup pass, (6) optional deploy readiness.
 
-**DONE: milestone 1** (catalog service, commit 4f6b2fd — see [[catalog-service]]).
-**IN PROGRESS: milestone 2** — settings page + Hevy key entry.
+**DONE: milestone 1** (catalog service, 4f6b2fd — [[catalog-service]]); reviewed,
+no blockers, findings folded into milestone 2.
+**DONE: milestone 2** (settings + key handling, fbe29d5 — [[key-handling]]);
+reviewed, one important key-leak finding fixed in milestone 3.
+**DONE: milestone 3** (plan flow — [[plan-generation]], [[hevy-sync]]).
+**NEXT: milestone 4** — replace the create-next-app home page with a dashboard.
 
 ## State reached
 - Work happens on git worktree branch `worktree-e2e-build`, branched from `dev` at
@@ -44,9 +48,16 @@ key action, (3) plan form → generate → preview → sync, (4) dashboard home,
 - `npm run build`, `npm run lint`, wiki tests: green at 3413321.
 
 ## Open questions / dissents
-- LLM provider still undecided. Milestone 3 wires the AI SDK with the provider read
-  from env AND a deterministic rule-based fallback, so the site works with no
-  provider key. Final provider choice stays open.
+- LLM provider still undecided. The AI SDK is wired with the provider read from
+  env (`anthropic` + `claude-opus-5` defaults, `@ai-sdk/anthropic` installed) and
+  a deterministic rule-based fallback, so the site works with no key. The LLM
+  path has NOT been exercised against a live provider — only the fallback has.
+- Generation uses `generateObject` in a server action, not `streamObject` behind
+  a route handler as [[plan-pipeline]] specifies. Deliberate simplification;
+  progressive preview is still open work. Recorded in [[plan-generation]].
+- Editing is preview-only: the "minimal-plus" swap-exercise and set/rep/rest
+  tweaks from [[plan-pipeline]] are not built yet. `searchTemplates` and
+  `getTemplateById` already exist for the picker.
 - VPS vendor undecided; decision deferred until first deploy.
 
 ## Next steps
