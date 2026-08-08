@@ -71,11 +71,37 @@ would be worse than none.
 
 `provider.ts` reads `LLM_PROVIDER` / `LLM_MODEL` / `LLM_API_KEY` and resolves an
 AI SDK model, importing the provider package dynamically so a second provider
-never becomes a hard build dependency. Default provider is `anthropic`, default
-model `claude-opus-5`. No key configured → the rules generate, and the preview
-says so. The provider call failing → the rules generate, and the preview says
-that too; the provider's own error text is never repeated to the user (see
-[[key-handling]]).
+never becomes a hard build dependency. **Default provider is `deepseek`, default
+model `deepseek-v4-pro`** (the owner's choice, 2026-08-08); `anthropic` remains
+wired. No key configured → the rules generate, and the preview says so. The
+provider call failing → the rules generate, and the preview says that too; the
+provider's own error text is never repeated to the user (see [[key-handling]]).
+
+DeepSeek's thinking mode is a request option rather than a separate model, so
+`LLM_THINKING` (`adaptive` default / `enabled` / `disabled`) and the optional
+`LLM_REASONING_EFFORT` are passed through `providerOptions.deepseek`.
+
+> [!warning] Two DeepSeek traps, both verified against the live docs
+> **1. `deepseek-chat` and `deepseek-reasoner` were retired on 2026-07-24.**
+> They were never separate models — routing labels for the non-thinking and
+> thinking modes of the then-current generation, both resolving to
+> `deepseek-v4-flash`. There is no redirect; a request naming either fails as an
+> unknown model. The AI SDK's own `DeepSeekChatModelId` type **still lists both
+> and nothing else**, so editor autocomplete hands you a dead value. Hence the
+> explicit rejection in `getLlmConfig` with the replacement named.
+>
+> **2. Structured output is not schema-guaranteed here.** `@ai-sdk/deepseek`
+> never sets `supportsStructuredOutputs`, so `generateObject` negotiates plain
+> `response_format: json_object` with the schema described in a system message,
+> not strict `json_schema`. DeepSeek separately documents json_object
+> occasionally returning empty content. Both failures land in the same place —
+> `generateObject` throws, `generatePlan` catches, the rules generate — so the
+> blast radius is a degraded plan with a stated reason, not an error page. The
+> `strictJsonSchema: true` option is set anyway, for when the provider does
+> start negotiating it.
+
+Cost is not a constraint at this volume: roughly 5k input + 6k output tokens per
+plan is about $0.007 on v4-pro and $0.002 on v4-flash.
 
 > [!note] Deviation from the design: no streaming yet
 > [[plan-pipeline]] specifies `streamObject` behind a route handler so a 30–60s

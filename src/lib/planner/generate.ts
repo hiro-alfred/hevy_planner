@@ -81,7 +81,7 @@ async function generateWithLlm(
 ): Promise<{ plan: Plan; violations: string[] }> {
   const config = getLlmConfig();
   if (!config) throw new Error("No LLM provider configured");
-  const model = await resolveModel(config);
+  const { model, providerOptions } = await resolveModel(config);
 
   const basePrompt = buildPrompt(request, days);
   let prompt = basePrompt;
@@ -89,6 +89,13 @@ async function generateWithLlm(
 
   // One retry with the violations appended, then stop. A third attempt costs
   // another 30-60s and rarely fixes what two could not.
+  //
+  // On DeepSeek this runs as json_object mode with the schema described in a
+  // system message, NOT strict json_schema — @ai-sdk/deepseek does not set
+  // supportsStructuredOutputs, so the schema is a strong request rather than a
+  // guarantee. DeepSeek also documents json_object occasionally returning empty
+  // content. Both land in the same place: generateObject throws, and
+  // generatePlan's catch falls back to the rule-based generator with a reason.
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const { object } = await generateObject({
       model,
@@ -96,6 +103,7 @@ async function generateWithLlm(
       system: SYSTEM_PROMPT,
       prompt,
       maxOutputTokens: 16000,
+      ...(providerOptions ? { providerOptions } : {}),
     });
 
     const catalog = await resolveCatalog(object);

@@ -193,3 +193,18 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   instead of hunting. Verified on the live box: existing key upgraded in place
   ("encrypted 1 stored secret(s)"), row now `enc:v1:…`, app still works.
   82 tests.
+- 2026-08-08 — **LLM provider set to DeepSeek** at the owner's request; default
+  `deepseek-v4-pro`, `anthropic` kept wired. Checking the live docs instead of
+  trusting recall paid for itself twice. (1) `deepseek-chat` and
+  `deepseek-reasoner` were RETIRED on 2026-07-24 — they were routing labels for
+  the non-thinking/thinking modes of `deepseek-v4-flash`, not models, and there
+  is no redirect. The AI SDK's `DeepSeekChatModelId` type still lists only those
+  two, so autocomplete hands you a dead value; `getLlmConfig` now rejects them
+  by name and says what to use. (2) `@ai-sdk/deepseek` never sets
+  `supportsStructuredOutputs`, so `generateObject` uses `json_object` with the
+  schema in a system message rather than strict `json_schema`, and DeepSeek
+  documents that mode occasionally returning empty content — tolerable only
+  because the existing retry + rule-based fallback already absorbs it. Both
+  recorded in [[plan-generation]]. Also: `ProviderOptions` is declared but not
+  exported by `ai`; the real type is `SharedV4ProviderOptions` from
+  `@ai-sdk/provider`, now a direct dependency since we import from it. 90 tests.

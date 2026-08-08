@@ -56,7 +56,9 @@ container path (`docker compose up`) is the remaining unproven piece.
   runs MariaDB 12.3 natively while the compose files pin 11.4 LTS.
 - Ops cost was flagged to the owner before starting (second container, tests now
   need a server) and the change was confirmed anyway. Recorded, not re-litigated.
-- LLM provider still unpicked; VPS vendor still undecided.
+- LLM provider PICKED: **DeepSeek** (`deepseek-v4-pro` default). Wiring is in;
+  still needs the owner's `LLM_API_KEY` in `.env` and one real generation to
+  prove it. VPS vendor still undecided.
 - `data/` still holds the old SQLite file. Left in place and gitignored because
   it may contain a stored Hevy key — the owner should delete it by hand.
 - Leftover worktree at `.claude/worktrees/e2e-build` is now fully merged and
@@ -72,10 +74,11 @@ the old one was `DATABASE_PATH`). Tests:
 `TEST_DATABASE_URL="mysql://root:hevydev@127.0.0.1:3306" npm test`.
 
 ## Next steps
-1. Pick the LLM provider so `generate.ts` stops falling back to the rule-based
-   generator — the biggest gap between "runs" and "does the thing".
-2. Exercise the real flow by hand: enter a Hevy key on `/settings`, refresh the
-   catalog, generate a plan, sync it. Nothing has touched the live Hevy API yet.
+1. Owner adds `LLM_API_KEY=<deepseek key>` to `.env` and restarts, then generate
+   one plan and confirm `source: "llm"` rather than a rules fallback. Until that
+   runs, the DeepSeek path is wired but unproven ([[plan-generation]]).
+2. Sync a SMALL plan (2 days) to Hevy. Nothing has hit the live write path yet,
+   and it is irreversible — no DELETE endpoint, capped routines ([[hevy-api]]).
 3. Prove the container path when Docker exists (or on the deploy host), and
    clear the warning in [[deployment]].
 4. Decide the VPS vendor and do a first real deploy.
