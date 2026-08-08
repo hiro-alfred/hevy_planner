@@ -7,7 +7,7 @@ import { fixturePlan as plan, recorder, resetPlanState, createTempDatabase } fro
 // create-once-then-PUT contract, including what happens when a sync dies
 // halfway through, races another sync, or is handed a plan it must refuse.
 
-const database = createTempDatabase();
+const database = createTempDatabase("hevy_sync");
 let sync: typeof import("./sync");
 let planId: number;
 

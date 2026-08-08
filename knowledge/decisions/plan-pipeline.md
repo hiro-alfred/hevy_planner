@@ -18,7 +18,7 @@ Extends [[product-architecture]]; grounded in the verified [[hevy-api]] surface.
 1. **Plan request** — typed input: goal, session length, sessions/week, split,
    experience, equipment. Persisted, so plans are reproducible/regenerable.
 2. **Catalog service** — page the full `exercise_templates` library (pageSize 100)
-   into SQLite; refresh manually/periodically. Mandatory, not an optimization: the
+   into MariaDB; refresh manually/periodically. Mandatory, not an optimization: the
    API has no search ([[hevy-api]]), and per-exercise lookups would be N+1
    (banned by CLAUDE.md). Pre-generation filter (equipment + split-relevant muscle
    groups) yields ~100–150 candidates for the prompt.
@@ -35,7 +35,7 @@ Extends [[product-architecture]]; grounded in the verified [[hevy-api]] surface.
    full-replace against stored ids. Forced by no-DELETE + routine-limit 403
    ([[hevy-api]]). Never auto-push: generate → preview/edit → explicit sync.
 
-## Data model (SQLite + Drizzle)
+## Data model (MariaDB + Drizzle)
 
 - `settings` — key-value: Hevy API key, LLM prefs, display unit.
 - `exercise_templates` — normalized catalog cache (filtering is a WHERE clause).

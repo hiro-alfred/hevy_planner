@@ -17,5 +17,10 @@ npm-debug.log*
 *.pem
 .DS_Store
 
-# SQLite database (runtime data, not source)
+# Local git worktrees
+/.claude/worktrees/
+
+# Leftover from the SQLite era. Nothing writes here any more (state lives in
+# MariaDB), but an existing file may still hold a stored Hevy API key, so it
+# stays ignored rather than being deleted for you. Safe to remove by hand.
 /data/

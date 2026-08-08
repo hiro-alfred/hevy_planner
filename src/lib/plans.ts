@@ -103,11 +103,13 @@ export async function getPlan(id: number): Promise<PlanRow | null> {
 /** Records the request before generation runs, so a plan is always reproducible. */
 export async function createPlan(request: PlanRequest): Promise<number> {
   const now = new Date().toISOString();
-  const [row] = await db
+  // MariaDB has no RETURNING, so the new id comes from the result header's
+  // insertId rather than from the statement itself. It is per-connection state
+  // in the driver, not a re-read, so a concurrent insert cannot alias it.
+  const [result] = await db
     .insert(plans)
-    .values({ request, plan: null, status: "draft", createdAt: now, updatedAt: now })
-    .returning({ id: plans.id });
-  return row!.id;
+    .values({ request, plan: null, status: "draft", createdAt: now, updatedAt: now });
+  return result.insertId;
 }
 
 export async function savePlan(id: number, plan: Plan): Promise<void> {

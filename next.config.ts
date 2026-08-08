@@ -6,9 +6,9 @@ const nextConfig: NextConfig = {
   // tree. See the Dockerfile — it copies that output rather than the source.
   output: "standalone",
 
-  // better-sqlite3 is a native module. It must be require()d from the Node
-  // runtime at runtime rather than bundled, or the .node binding is lost.
-  serverExternalPackages: ["better-sqlite3"],
+  // mysql2 resolves some of its internals dynamically, which the bundler
+  // cannot follow. Leaving it external keeps it a plain runtime require.
+  serverExternalPackages: ["mysql2"],
 };
 
 export default nextConfig;

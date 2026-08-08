@@ -3,6 +3,6 @@ export async function register() {
   // so a fresh clone or container boots straight into a migrated database.
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { runMigrations } = await import("@/lib/db/migrate");
-    runMigrations();
+    await runMigrations();
   }
 }

@@ -45,7 +45,13 @@ export function withPlanLock<T>(planId: number, fn: () => Promise<T>): Promise<T
 
 /**
  * Single-process only. The lock lives in memory, so it holds for one server —
- * which is the deployment this app is built for (SQLite on a local volume,
- * see knowledge/systems/deployment.md). Running several app instances against
- * one database would need a lock in the database instead.
+ * which is the deployment this app is built for (a single app container, see
+ * knowledge/systems/deployment.md).
+ *
+ * Worth re-reading before scaling out: moving to MariaDB made a second app
+ * instance against the same database *possible* in a way a local database file
+ * never did, and this lock would not span them. The UNIQUE(plan_id, day_index)
+ * index still stops a duplicate link row, but the duplicate Hevy routine is
+ * already created by then and Hevy has no DELETE. A second instance needs this
+ * replaced by a database lock (MariaDB GET_LOCK), not just more replicas.
  */

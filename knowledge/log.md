@@ -121,3 +121,21 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   provenance banner survived a regenerate and could describe the previous plan;
   empty equipment meant "anything" while the error text said one was required.
   63 tests. Run complete.
+- 2026-08-08 — **SQLite → MariaDB**, at the owner's request. Merged
+  `worktree-e2e-build` into `dev` first (fast-forward, 8 commits) so the
+  conversion ran once against the full app rather than twice against diverging
+  branches. Rationale, cost, and the full dialect-difference table are in
+  [[mariadb-migration]]; the ops cost (second container, tests now need a
+  server) was raised before starting and the change confirmed anyway. The trap
+  worth remembering: drizzle's mysql `json()` defines no `mapFromDriverValue`
+  and MariaDB reports `JSON` as `LONGTEXT`, so every JSON column would have
+  returned an unparsed string — silently, failing only at the first property
+  access. `src/lib/db/json-column.ts` maps both directions. Four more that a
+  config-only swap would have missed: no `RETURNING`, no `json_each`/
+  `JSON_OVERLAPS`, `escape '\'` does not parse, and `better-sqlite3`'s
+  synchronous transaction had to become async. Migrations squashed to a fresh
+  `0000` (no instance held data; the old `0001` dedup only ever repaired SQLite
+  files). Also fixed eslint linting a nested worktree's `.next/` output as if it
+  were source — 769 phantom errors. Build, lint and generate green; **the
+  DB-backed suites are unrun** (no Docker on this machine), so the translated
+  SQL was verified by compiling it through drizzle's mysql dialect instead.

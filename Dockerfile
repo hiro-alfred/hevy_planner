@@ -1,5 +1,9 @@
 # Self-hosted deployment image (see knowledge/decisions/product-architecture.md:
-# a persistent server, not serverless — SQLite on a mounted volume needs one).
+# a persistent server, not serverless).
+#
+# This image is the APP ONLY. State lives in the MariaDB service defined in
+# docker-compose.yml, so there is no volume here and DATABASE_URL must point at
+# a reachable server — an app container started on its own has nowhere to write.
 #
 # Multi-stage: dependencies and the build stay out of the final image, which
 # ships only Next's standalone output plus what it needs at runtime.
@@ -8,8 +12,8 @@
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 
-# better-sqlite3 ships prebuilt binaries for this platform, so no compiler is
-# needed. --ignore-scripts keeps it from trying to build from source anyway.
+# Every dependency is pure JS now that the database driver is mysql2, so there
+# is nothing to compile. --ignore-scripts keeps install hooks out of the build.
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
 
@@ -28,14 +32,11 @@ WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
-    HOSTNAME=0.0.0.0 \
-    DATABASE_PATH=/data/hevy-planner.sqlite
+    HOSTNAME=0.0.0.0
 
-# Never run the app as root: the database file and the API key it holds should
-# be readable by exactly one account.
+# Never run the app as root.
 RUN groupadd --system --gid 1001 nodejs \
- && useradd --system --uid 1001 --gid nodejs nextjs \
- && mkdir -p /data && chown nextjs:nodejs /data
+ && useradd --system --uid 1001 --gid nodejs nextjs
 
 # Standalone output carries its own minimal node_modules and server.js.
 COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
@@ -48,12 +49,11 @@ COPY --from=build --chown=nextjs:nodejs /app/drizzle ./drizzle
 
 USER nextjs
 
-# The database lives on a volume; without one, every deploy starts empty and
-# the stored Hevy key and plans are lost.
-VOLUME ["/data"]
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+# start-period covers the boot-time migration wait in src/lib/db/migrate.ts,
+# which retries for up to 60s while MariaDB finishes coming up.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 CMD ["node", "server.js"]

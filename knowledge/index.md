@@ -41,9 +41,9 @@ category. Start here; conventions live in [[schema]].
 - [[wiki-enforcement]] — the lint test and the read-guard hook that keep the vault
   honest.
 - [[catalog-service]] — the local exercise-template cache: refresh contract,
-  one-query candidate filtering, SQLite traps.
+  one-query candidate filtering, MariaDB traps.
 - [[testing-setup]] — vitest for app logic, pytest for the vault; how to test
-  DB-backed modules and the Windows install flag.
+  DB-backed modules against the throwaway MariaDB the suite needs.
 - [[key-handling]] — the four barriers that keep the Hevy API key off the client,
   the env fallback, and the settings page surface.
 - [[plan-generation]] — the rule-based and LLM generators behind one entry point,
@@ -57,8 +57,10 @@ category. Start here; conventions live in [[schema]].
 
 - [[product-architecture]] — 2026-08-08 stack decisions: Next.js full-stack (not
   WordPress), personal-first, AI-SDK LLM layer, in-app Hevy key entry, self-hosted
-  persistent server (not serverless), SQLite + Drizzle.
+  persistent server (not serverless), MariaDB + Drizzle.
 - [[plan-pipeline]] — round-2 core-flow design: 4-stage pipeline, JSON plan doc +
   sync_links, create-once-then-PUT sync, minimal-plus editing, kg-only units.
+- [[mariadb-migration]] — 2026-08-08 move off SQLite: what it cost, the dialect
+  traps (drizzle's `json()` does not round-trip on MariaDB), verification status.
 - [[wiki-bootstrap]] — choices made at vault creation: categories, re-authored
   skills, thin bootstrap.

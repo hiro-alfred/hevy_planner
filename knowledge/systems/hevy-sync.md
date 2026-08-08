@@ -78,6 +78,16 @@ LLM anywhere near the write path.
 > Generally: a database constraint cannot undo an external side effect that
 > already happened.
 
+> [!warning] The lock is in memory, so it does not span app instances
+> It holds for one server process, which is the deployment this app is built for
+> ([[deployment]]). Worth re-reading before scaling out: [[mariadb-migration]]
+> made a second instance against the same database *possible* in a way a local
+> database file never did, and two instances would each keep their own lock map.
+> The unique index would still stop the duplicate link row — after the duplicate
+> Hevy routine already exists, which is the case above. A second instance needs
+> this replaced by a database-level lock (MariaDB `GET_LOCK`), not just more
+> replicas.
+
 ## What the hash covers
 
 `routineHash` in `to-hevy.ts` hashes the **routine payload**, not the plan day.

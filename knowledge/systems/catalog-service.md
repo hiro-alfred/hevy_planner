@@ -1,7 +1,7 @@
 ---
 title: Catalog service — the local exercise-template cache
 aliases: [catalog, catalog service, exercise cache, candidate filtering]
-tags: [subsystem, hevy, catalog, sqlite]
+tags: [subsystem, hevy, catalog, mariadb]
 type: subsystem
 created: 2026-08-08
 updated: 2026-08-08
@@ -52,8 +52,9 @@ would otherwise break the multi-row insert on its own conflict.
 to ONE SQL query:
 
 - equipment → `equipment_category IN (…)`
-- muscle group → primary match **OR** a correlated `EXISTS` over
-  `json_each(secondary_muscle_groups)` (the column is a JSON array)
+- muscle group → primary match **OR** an OR-chain of
+  `JSON_CONTAINS(secondary_muscle_groups, JSON_QUOTE(?))`, one probe per
+  requested group (the column is a JSON array)
 - type → restricted to the four rep-based types by default
   (`weight_reps`, `reps_only`, `bodyweight_reps`, `bodyweight_assisted_reps`),
   because every set in the plan model is a rep range; duration/distance
@@ -80,11 +81,20 @@ no endpoint that lists them.
 
 ## Traps found while building
 
-- **A bare constant in `ORDER BY` is a column ordinal in SQLite.** Emitting
-  `sql\`0\`` as a no-op ranking term fails with "1st ORDER BY term out of range";
-  the ranking expression must be omitted entirely instead.
-- **Windows keeps the SQLite file locked until the process exits**, so temp-DB
-  cleanup in tests is best-effort.
+- **A bare constant in `ORDER BY` is a column ordinal.** Emitting `sql\`0\`` as a
+  no-op ranking term fails with "1st ORDER BY term out of range"; the ranking
+  expression must be omitted entirely instead. Found on SQLite, but MariaDB
+  reads a bare integer the same way, so the guard survived
+  [[mariadb-migration]].
+- **MariaDB has neither `json_each()` nor `JSON_OVERLAPS`.** `JSON_OVERLAPS` is
+  MySQL 8 only, and there is no table function to unnest a JSON array — hence
+  the OR-chain of `JSON_CONTAINS` probes above rather than a single set-overlap
+  call. It is still one query, which is what the no-N+1 rule asks for.
+- **The `LIKE` escape character is `!`, not a backslash.** `escape '\'` does not
+  parse on MariaDB (the backslash escapes the closing quote), and the doubled
+  form breaks under `NO_BACKSLASH_ESCAPES` instead. `!` means the same thing in
+  every `sql_mode`, and `searchTemplates` escapes `!`, `%`, and `_` in the user's
+  input to match.
 
-Covered by `src/lib/hevy/catalog.test.ts` (vitest, temp SQLite file + a stub
-client) — see [[testing-setup]].
+Covered by `src/lib/hevy/catalog.test.ts` (vitest, throwaway MariaDB database +
+a stub client) — see [[testing-setup]].

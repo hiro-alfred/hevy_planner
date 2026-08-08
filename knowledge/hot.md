@@ -16,64 +16,48 @@ latest state. History belongs in [[log]] — this page holds only the CURRENT st
 Keep the four sections below; they are the template.
 
 ## Active task
-**COMPLETE: scaffold → working end-to-end product.** All six planned milestones
-are done, reviewed, and pushed on branch `worktree-e2e-build` (7 commits,
-4f6b2fd..HEAD, branched from `dev` at 3413321). **Not yet merged into `dev`** —
-that is the first thing to decide next session.
-
-A user can now: enter a Hevy key on `/settings` → fetch the exercise catalog →
-request a plan on `/plans/new` → get one (LLM if a provider key is set,
-otherwise the deterministic generator) → preview it on `/plans/[id]` → sync it
-to Hevy as a folder plus one routine per training day.
+Storage moved from SQLite to **MariaDB** at the owner's request
+([[mariadb-migration]]). Code, config, docs and wiki are done; the DB-backed
+test suites are the one thing still unrun.
 
 ## State reached
-- **Milestones**: catalog service ([[catalog-service]]), settings + key handling
-  ([[key-handling]]), plan flow ([[plan-generation]], [[hevy-sync]]), dashboard,
-  cleanup, deploy readiness ([[deployment]]).
-- **Quality gates**: `npm run build`, `npm run lint`, 63 vitest tests, and the
-  wiki tests all green. No file over 300 lines. Every route verified against a
-  running server, including 404 and first-run empty states.
-- **Verified end to end** on a clean database and on a 192-exercise seeded
-  catalog: a 4-day upper/lower plan generated and rendered with zero
-  validation violations.
-- **Reviewed after every commit** (Fable subagents). Every finding was fixed,
-  not deferred — see [[log]]. The write path to Hevy took the most iteration
-  because nothing written there can be deleted.
-- Migration `0001` adds `plans.hevy_folder_id` and a unique index on
-  `sync_links(plan_id, day_index)`; it self-heals a database that already
-  contains duplicate links. Migrations apply automatically on boot.
+- `worktree-e2e-build` (8 commits: catalog, settings, plan flow, dashboard, sync
+  fixes, Docker, plan lock) fast-forward **merged into `dev`** first, so the
+  conversion happened once against the full app instead of twice.
+- MariaDB conversion complete: `mysql2` replaces `better-sqlite3`,
+  `drizzle-orm/mysql-core` schema (varchar PKs, `mysqlEnum`, `boolean`,
+  ISO-8601 `varchar(32)` timestamps), pooled async client, single squashed
+  `drizzle/0000_brainy_chat.sql`. Per-dialect fixes and their reasons are
+  tabulated in [[mariadb-migration]].
+- `src/lib/db/json-column.ts` is load-bearing: drizzle's mysql `json()` has no
+  `mapFromDriverValue`, and MariaDB reports JSON as LONGTEXT, so every JSON
+  column would silently return an unparsed string. Do not "simplify" it away.
+- Boot migration now retries transient connect errors for 60s
+  ([[deployment]]) — compose `depends_on` alone does not cover restarts.
+- Two compose files: `docker-compose.yml` (app + db, no published DB port) and
+  `docker-compose.test.yml` (tmpfs MariaDB on 3307). Tests take a database per
+  file via `src/test/database.ts` ([[testing-setup]]).
+- Green: `npm run build` incl. TypeScript, `npm run lint` (also fixed eslint
+  linting nested worktree `.next/` output), `drizzle-kit generate`. 63 tests
+  were green on SQLite immediately before the change.
 
 ## Open questions / dissents
-- **The sync path has never run against the real Hevy API.** It is covered by
-  unit tests against a stub client, but a Hevy Pro key was not available. This
-  is the single biggest untested surface — treat the first real sync as an
-  experiment, on a throwaway Hevy account if possible.
-- **The LLM path has never run against a live provider** either, for the same
-  reason. The deterministic fallback is what has actually been exercised.
-  Provider choice is still open (`anthropic` + `claude-opus-5` are only
-  defaults; `@ai-sdk/anthropic` is installed).
-- Generation uses `generateObject` in a server action, not `streamObject`
-  behind a route handler as [[plan-pipeline]] specifies — deliberate
-  simplification, recorded in [[plan-generation]]. Progressive preview is unbuilt.
-- The "minimal-plus" editor from [[plan-pipeline]] (swap exercise, tweak
-  sets/reps/rest) is unbuilt; the preview is read-only.
-- Known unfixed gap in [[hevy-sync]]: if a create succeeds but its response is
-  lost, the retry duplicates. Closing it needs a reconcile-by-title read.
-- Exports that exist and are tested but nothing calls YET, kept as the surface
-  their planned feature needs — reviewers keep re-flagging them, so recording
-  the decision: `searchTemplates`, `getTemplateById`, `getAvailableEquipment`
-  and `getCandidates`'s `includeNonRepBased` (swap-exercise picker);
-  `getWeightUnit` / `setWeightUnit` (lbs display toggle). Delete them with the
-  feature if it is dropped.
-- No authentication. Exposing this to the internet needs an external auth gate
-  ([[deployment]]).
-- VPS vendor still undecided.
+- **Unverified:** no Docker daemon and no MariaDB on this machine, so `npm test`
+  has not run against a real server. Translated SQL was checked by compiling it
+  through drizzle's mysql dialect instead — see the verification callout in
+  [[mariadb-migration]].
+- Ops cost was flagged to the owner before starting (second container, tests now
+  need a server) and the change was confirmed anyway. Recorded, not re-litigated.
+- LLM provider still unpicked; VPS vendor still undecided.
+- `data/` still holds the old SQLite file. Left in place and gitignored because
+  it may contain a stored Hevy key — the owner should delete it by hand.
+- Leftover worktree at `.claude/worktrees/e2e-build` is now fully merged and
+  redundant; safe to `git worktree remove`.
 
 ## Next steps
-1. **Merge `worktree-e2e-build` into `dev`** (or open a PR) — the work is
-   complete and pushed but still on its own branch.
-2. Do a first real sync against a Hevy Pro account and see what the API
-   actually does, especially the routine cap and PUT full-replace.
-3. Set `LLM_API_KEY` and exercise the LLM path once; compare its plans against
-   the deterministic ones and decide the provider.
-4. Then pick up either the minimal-plus editor or streaming generation.
+1. On a machine with Docker: `npm run test:db:up && npm test`, then
+   `docker compose up --build` and load every route. Fix whatever the first real
+   MariaDB run surfaces and clear the warning in [[mariadb-migration]].
+2. Pick the LLM provider so `generate.ts` stops falling back to the rule-based
+   generator.
+3. Decide the VPS vendor and do a first real deploy.

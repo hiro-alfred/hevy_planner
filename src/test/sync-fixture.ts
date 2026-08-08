@@ -1,37 +1,14 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import type { HevyClient } from "@/lib/hevy/client";
 import { HevyApiError } from "@/lib/hevy/client";
 import type { Plan } from "@/lib/planner/schema";
+import { createTempDatabase } from "./database";
 
 // Shared setup for the sync test files. Lives here rather than being copied
 // into each one so the fixture plan and the stub client can never drift apart.
 
-/**
- * Points DATABASE_PATH at a throwaway file and runs the real migrations.
- *
- * Must be called before anything that imports the db client — that module
- * resolves DATABASE_PATH once, at import time (see knowledge/systems/testing-setup.md).
- */
-export function createTempDatabase() {
-  const dir = mkdtempSync(join(tmpdir(), "hevy-sync-"));
-  process.env.DATABASE_PATH = join(dir, "test.sqlite");
-
-  return {
-    async migrate() {
-      const { runMigrations } = await import("@/lib/db/migrate");
-      runMigrations();
-    },
-    cleanup() {
-      try {
-        rmSync(dir, { recursive: true, force: true });
-      } catch {
-        /* Windows holds the SQLite lock until the process exits */
-      }
-    },
-  };
-}
+// Re-exported so the sync tests keep a single import; the implementation is
+// shared with every other DB-touching test file (see ./database.ts).
+export { createTempDatabase };
 
 /** Truncates plan state and seeds the catalog rows the fixture plan needs. */
 export async function resetPlanState(): Promise<number> {

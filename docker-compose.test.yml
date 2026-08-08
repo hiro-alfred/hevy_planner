@@ -1,0 +1,29 @@
+# Throwaway MariaDB for the test suite. `npm run test:db:up` starts it.
+#
+# Separate from docker-compose.yml on purpose: this one publishes a port (the
+# tests run on the host, not in the network), holds no volume (every run should
+# start from nothing), and must never be pointed at real data.
+
+services:
+  test-db:
+    image: mariadb:11.4
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+    ports:
+      # 3307, not 3306, so an existing local MySQL/MariaDB keeps working.
+      - "3307:3306"
+    # tmpfs, not a volume: the whole point is that nothing survives the run, and
+    # keeping the data directory in RAM makes the per-file CREATE DATABASE and
+    # migration churn considerably faster.
+    tmpfs:
+      - /var/lib/mysql
+    command:
+      # Each test file creates its own database; the default 151 is plenty, but
+      # the pool is 10 per file and vitest runs files in parallel.
+      - --max-connections=200
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+      start_period: 20s

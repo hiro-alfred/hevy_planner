@@ -30,13 +30,13 @@ async function getSetting(key: string): Promise<string | null> {
 }
 
 async function setSetting(key: string, value: string): Promise<void> {
+  // MySQL/MariaDB upsert. There is no conflict target to name: the clause fires
+  // on any unique-key collision, which for this table is only the primary key.
+  const updatedAt = new Date().toISOString();
   await db
     .insert(settings)
-    .values({ key, value, updatedAt: new Date().toISOString() })
-    .onConflictDoUpdate({
-      target: settings.key,
-      set: { value, updatedAt: new Date().toISOString() },
-    });
+    .values({ key, value, updatedAt })
+    .onDuplicateKeyUpdate({ set: { value, updatedAt } });
 }
 
 async function deleteSetting(key: string): Promise<void> {

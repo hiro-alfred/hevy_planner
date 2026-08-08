@@ -1,0 +1,48 @@
+# Self-hosted stack: the Next server plus the MariaDB it stores everything in.
+#
+# Both services are needed — unlike the file-backed database this replaced, the
+# app cannot start a database of its own. `docker compose up` is the supported
+# way to run it; a bare `docker run` of the app image needs a reachable
+# DATABASE_URL supplied by hand.
+
+services:
+  db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: hevy_planner
+      MARIADB_USER: hevy
+      # Compose substitutes these from .env (never committed). The defaults keep
+      # a local try-it-out working; a deployment must set real values.
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-hevy}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-root}
+    volumes:
+      - db-data:/var/lib/mysql
+    # No `ports:` on purpose — the database is reachable only from the compose
+    # network. Publishing 3306 to the host is what turns a home server into an
+    # internet-exposed database.
+    healthcheck:
+      # healthcheck.sh ships with the mariadb image; --connect proves the server
+      # is accepting connections, not merely that the process exists.
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql://hevy:${MARIADB_PASSWORD:-hevy}@db:3306/hevy_planner
+      # Optional bootstrap key; the settings page is the normal way to set it.
+      HEVY_API_KEY: ${HEVY_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "3000:3000"
+
+volumes:
+  db-data:

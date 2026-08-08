@@ -50,15 +50,16 @@ Pro-only capability.
   `PUT`-replace those routines. (The Hevy API has no DELETE and a routine cap, so
   creating anew each time is not viable.) Syncing is always an explicit user action
   after preview — never automatic.
-- **Storage** — SQLite (via Drizzle) on local disk: settings (including the Hevy
+- **Storage** — MariaDB (via Drizzle, mysql dialect): settings (including the Hevy
   key), exercise-template catalog cache, plan history, synced routine ids. All
   weights are stored and synced in **kg** (the API's only unit); pounds are a
   display-only preference.
 - **Deployment** — self-hosted on a persistent Linux server (budget VPS or a
   Raspberry Pi), not serverless: the app is a long-running Node process built with
-  Next `output: 'standalone'` and shipped as a Docker container next to a volume.
-  Until multi-user auth exists, public exposure should sit behind an external gate
-  (e.g. Cloudflare Access). No infrastructure has been provisioned yet.
+  Next `output: 'standalone'`, shipped as a Docker container alongside a MariaDB
+  container that owns the data volume (`docker-compose.yml`). Until multi-user auth
+  exists, public exposure should sit behind an external gate (e.g. Cloudflare
+  Access). No infrastructure has been provisioned yet.
 - **Mobile** — not part of the initial build. A PWA or React Native path is a possible
   future direction, not a current commitment.
 
@@ -68,15 +69,28 @@ Pro-only capability.
 |---|---|
 | Framework | Next.js (TypeScript, React) |
 | API layer | Next.js route handlers + server actions (server-side only) |
-| Database | SQLite + Drizzle ORM |
+| Database | MariaDB + Drizzle ORM (mysql dialect, `mysql2` driver) |
 | Workout data | Hevy API (requires Hevy Pro API key; spec pinned at `docs/hevy-openapi.json`) |
 | Plan generation | Vercel AI SDK (provider-agnostic; Zod structured output) |
 | Deployment target | Self-hosted persistent server (budget VPS / Raspberry Pi), Docker + Next standalone |
 
 ## Setup
 
-- **App (Node ≥ 20):** `npm install`, then `npm run dev` (or `npm run build && npm start`).
-  All application dependencies are declared in `package.json`.
+The app needs a MariaDB server; it cannot create one for itself. Schema migrations are
+applied automatically on every server boot, so there is no manual migration step.
+
+- **Everything at once (recommended):** `docker compose up --build` starts MariaDB and
+  the app together on <http://localhost:3000>. Copy `.env.example` to `.env` and set
+  `MARIADB_PASSWORD` / `MARIADB_ROOT_PASSWORD` first — the built-in defaults are
+  throwaway values, fine for a local try-out and not for anything reachable from
+  outside the host.
+- **App only (Node ≥ 20):** `npm install`, point `DATABASE_URL` at a reachable MariaDB,
+  then `npm run dev` (or `npm run build && npm start`). All application dependencies are
+  declared in `package.json`.
+- **Tests:** `npm run test:db:up` once to start a throwaway MariaDB on port 3307, then
+  `npm test`. Each test file creates and drops its own database on that server, so runs
+  never share state. `npm run test:db:down` stops it. Docker is required; to use your
+  own server instead, set `TEST_DATABASE_URL` (it will `CREATE` and `DROP` databases).
 - **Dev tooling (Python, optional):** `pip install -r requirements.txt` — needed only to
   run the knowledge-wiki lint tests (`python -m pytest tests/`).
 
@@ -96,7 +110,10 @@ committed**. `.env.example` documents the expected variables:
 | `LLM_PROVIDER` | *(optional)* LLM provider for plan generation. Defaults to `anthropic` |
 | `LLM_MODEL` | *(optional)* Model id for that provider. Defaults to `claude-opus-5` |
 | `LLM_API_KEY` | *(optional)* API key for the configured provider. **Without it the app still works** — plans come from the deterministic built-in generator instead |
-| `DATABASE_PATH` | *(optional)* Path of the SQLite database file (defaults to `./data/hevy-planner.sqlite`) |
+| `DATABASE_URL` | MariaDB connection string, e.g. `mysql://hevy:pw@db:3306/hevy_planner`. Required in any real deployment; defaults to a localhost dev database |
+| `MARIADB_PASSWORD` | Password for the `hevy` user in the `docker-compose.yml` database container |
+| `MARIADB_ROOT_PASSWORD` | Root password for that same container |
+| `TEST_DATABASE_URL` | *(optional)* MariaDB the test suite may create and drop databases on. Defaults to the throwaway server in `docker-compose.test.yml` |
 
 Weights are handled in **kg by default** (Hevy's API is kg-only); a display-only
 lbs preference is planned in settings.

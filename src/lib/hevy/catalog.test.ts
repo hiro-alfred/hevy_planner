@@ -1,32 +1,20 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { createTempDatabase } from "@/test/database";
 import type { HevyClient } from "./client";
 import type { HevyExerciseTemplate } from "./types";
 
-// The db client resolves DATABASE_PATH at import time, so the temp path has to
-// be set before any module that imports it is loaded — hence dynamic imports.
+// The db client resolves DATABASE_URL at import time, so the throwaway database
+// has to be claimed before any module that imports it is loaded — hence the
+// top-level call here and the dynamic imports below.
+const database = createTempDatabase("hevy_catalog");
 let catalog: typeof import("./catalog");
-let dir: string;
 
 beforeAll(async () => {
-  dir = mkdtempSync(join(tmpdir(), "hevy-catalog-"));
-  process.env.DATABASE_PATH = join(dir, "test.sqlite");
-  const { runMigrations } = await import("@/lib/db/migrate");
-  runMigrations();
+  await database.migrate();
   catalog = await import("./catalog");
 });
 
-afterAll(() => {
-  // Windows keeps the SQLite file locked until the process exits, so best-effort
-  // cleanup only — the OS reclaims the temp dir either way.
-  try {
-    rmSync(dir, { recursive: true, force: true });
-  } catch {
-    /* ignore */
-  }
-});
+afterAll(() => database.cleanup());
 
 function template(overrides: Partial<HevyExerciseTemplate> = {}): HevyExerciseTemplate {
   return {

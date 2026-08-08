@@ -1,30 +1,19 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { createTempDatabase } from "@/test/database";
 
-// See knowledge/systems/testing-setup.md: DATABASE_PATH must be set before the
+// See knowledge/systems/testing-setup.md: DATABASE_URL must be set before the
 // db client module is imported, hence the dynamic imports.
+const database = createTempDatabase("hevy_settings");
 let settingsModule: typeof import("./settings");
-let dir: string;
 
 const KEY = "11111111-2222-3333-4444-5555abcd";
 
 beforeAll(async () => {
-  dir = mkdtempSync(join(tmpdir(), "hevy-settings-"));
-  process.env.DATABASE_PATH = join(dir, "test.sqlite");
-  const { runMigrations } = await import("@/lib/db/migrate");
-  runMigrations();
+  await database.migrate();
   settingsModule = await import("./settings");
 });
 
-afterAll(() => {
-  try {
-    rmSync(dir, { recursive: true, force: true });
-  } catch {
-    /* Windows holds the SQLite lock until exit */
-  }
-});
+afterAll(() => database.cleanup());
 
 beforeEach(async () => {
   const { db } = await import("@/lib/db/client");

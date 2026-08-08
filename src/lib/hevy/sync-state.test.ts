@@ -4,7 +4,7 @@ import { fixturePlan, recorder, resetPlanState, createTempDatabase } from "@/tes
 // getSyncState feeds the plan page's "up to date" / "changes to sync" wording,
 // so anything it gets wrong becomes a claim the UI makes falsely.
 
-const database = createTempDatabase();
+const database = createTempDatabase("hevy_sync_state");
 let sync: typeof import("./sync");
 let planId: number;
 

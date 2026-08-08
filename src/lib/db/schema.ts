@@ -1,62 +1,68 @@
-import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { boolean, int, mysqlEnum, mysqlTable, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { json } from "./json-column";
 import type { Plan, PlanRequest } from "@/lib/planner/schema";
 
-export const settings = sqliteTable("settings", {
-  key: text("key").primaryKey(),
-  value: text("value").notNull(),
-  updatedAt: text("updated_at").notNull(),
+// MariaDB via the mysql dialect. Two dialect rules shape the column choices
+// below and are easy to trip over when editing:
+//   - an indexed/primary-key string column must be a bounded varchar; TEXT
+//     cannot be a primary key without a prefix length.
+//   - JSON columns use ./json-column, NOT drizzle's json() — see that file.
+// Timestamps stay ISO-8601 strings (varchar 32) rather than DATETIME: the app
+// compares and sorts them as strings throughout, and ISO-8601 sorts correctly.
+
+export const settings = mysqlTable("settings", {
+  key: varchar("key", { length: 128 }).primaryKey(),
+  value: varchar("value", { length: 1024 }).notNull(),
+  updatedAt: varchar("updated_at", { length: 32 }).notNull(),
 });
 
 // Local cache of Hevy's exercise_templates library. Mandatory: the Hevy API has
 // no search/filter, so candidate filtering happens here (WHERE, not JSON).
-export const exerciseTemplates = sqliteTable("exercise_templates", {
-  id: text("id").primaryKey(),
-  title: text("title").notNull(),
-  type: text("type").notNull(),
-  primaryMuscleGroup: text("primary_muscle_group").notNull(),
-  secondaryMuscleGroups: text("secondary_muscle_groups", { mode: "json" })
-    .$type<string[]>()
-    .notNull(),
-  equipmentCategory: text("equipment_category").notNull(),
-  isCustom: integer("is_custom", { mode: "boolean" }).notNull().default(false),
-  fetchedAt: text("fetched_at").notNull(),
+export const exerciseTemplates = mysqlTable("exercise_templates", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  type: varchar("type", { length: 64 }).notNull(),
+  primaryMuscleGroup: varchar("primary_muscle_group", { length: 64 }).notNull(),
+  secondaryMuscleGroups: json("secondary_muscle_groups").$type<string[]>().notNull(),
+  equipmentCategory: varchar("equipment_category", { length: 64 }).notNull(),
+  isCustom: boolean("is_custom").notNull().default(false),
+  fetchedAt: varchar("fetched_at", { length: 32 }).notNull(),
 });
 
 // The plan is a JSON document, not normalized tables — edited and synced as a
 // whole; only relational state (catalog, sync links) gets real tables.
-export const plans = sqliteTable("plans", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  request: text("request", { mode: "json" }).$type<PlanRequest>().notNull(),
-  plan: text("plan", { mode: "json" }).$type<Plan>(),
-  status: text("status", { enum: ["draft", "generated", "synced"] })
-    .notNull()
-    .default("draft"),
+export const plans = mysqlTable("plans", {
+  id: int("id").autoincrement().primaryKey(),
+  request: json("request").$type<PlanRequest>().notNull(),
+  plan: json("plan").$type<Plan>(),
+  status: mysqlEnum("status", ["draft", "generated", "synced"]).notNull().default("draft"),
   // The Hevy folder created for this plan, recorded the instant the create
   // returns. It lives here rather than only on sync_links because those rows
   // appear only after a routine is created: if the FIRST routine create fails
   // (the routine cap 403 this design expects), a folder-id kept solely on
   // sync_links would be lost, and the retry would create a second folder that
   // can never be deleted.
-  hevyFolderId: integer("hevy_folder_id"),
-  createdAt: text("created_at").notNull(),
-  updatedAt: text("updated_at").notNull(),
+  hevyFolderId: int("hevy_folder_id"),
+  createdAt: varchar("created_at", { length: 32 }).notNull(),
+  updatedAt: varchar("updated_at", { length: 32 }).notNull(),
 });
 
 // One row per synced training day: which Hevy routine holds it, and a hash of
 // what was pushed (re-sync PUTs only days whose hash changed). Hevy folder ids
 // are numbers, routine ids strings — the API is inconsistent; we mirror it.
-export const syncLinks = sqliteTable(
+export const syncLinks = mysqlTable(
   "sync_links",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
-    planId: integer("plan_id")
+    id: int("id").autoincrement().primaryKey(),
+    planId: int("plan_id")
       .notNull()
       .references(() => plans.id),
-    dayIndex: integer("day_index").notNull(),
-    hevyFolderId: integer("hevy_folder_id").notNull(),
-    hevyRoutineId: text("hevy_routine_id").notNull(),
-    contentHash: text("content_hash").notNull(),
-    lastSyncedAt: text("last_synced_at").notNull(),
+    dayIndex: int("day_index").notNull(),
+    hevyFolderId: int("hevy_folder_id").notNull(),
+    hevyRoutineId: varchar("hevy_routine_id", { length: 64 }).notNull(),
+    // sha256 hex from routineHash(), so exactly 64 characters.
+    contentHash: varchar("content_hash", { length: 64 }).notNull(),
+    lastSyncedAt: varchar("last_synced_at", { length: 32 }).notNull(),
   },
   // A day may be linked to exactly one routine, so a corrupted link table can
   // never make a later sync PUT the wrong routine. Note what this does NOT do:

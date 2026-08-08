@@ -16,8 +16,9 @@ export type CatalogRow = typeof exerciseTemplates.$inferSelect;
 // not spin forever. 200 pages × 100 = 20k templates, far above the real library.
 const MAX_PAGES = 200;
 
-// 8 columns per row; SQLite's default variable cap is 32k on modern builds, but
-// chunking keeps a single statement well inside even the conservative 999 limit.
+// 8 columns per row. MariaDB caps a prepared statement at 65535 placeholders
+// and the whole packet at max_allowed_packet (16MB by default); chunking keeps
+// a single multi-row insert far inside both.
 const INSERT_CHUNK = 100;
 
 // Set types that a sets × reps plan can express (planner/schema.ts models every
@@ -49,7 +50,7 @@ function toRow(t: HevyExerciseTemplate, fetchedAt: string) {
  * The network walk happens first and entirely outside the transaction: a failed
  * or partial fetch must leave the previous cache untouched rather than
  * truncating it. Only once the walk has provably completed do we swap the table
- * contents inside one synchronous better-sqlite3 transaction.
+ * contents inside one transaction.
  *
  * @returns the number of templates cached.
  */
@@ -90,12 +91,10 @@ export async function refreshCatalog(client: HevyClient): Promise<number> {
   // the same millisecond share a fetchedAt, which would make a timestamp-based
   // prune silently keep gone-upstream rows. The transaction means readers never
   // observe the empty window.
-  db.transaction((tx) => {
-    tx.delete(exerciseTemplates).run();
+  await db.transaction(async (tx) => {
+    await tx.delete(exerciseTemplates);
     for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
-      tx.insert(exerciseTemplates)
-        .values(rows.slice(i, i + INSERT_CHUNK))
-        .run();
+      await tx.insert(exerciseTemplates).values(rows.slice(i, i + INSERT_CHUNK));
     }
   });
 
@@ -132,20 +131,24 @@ export interface CandidateFilter {
 /**
  * Matches templates against a secondary muscle group.
  *
- * secondary_muscle_groups is a JSON array column, so the match runs through
- * SQLite's json_each() inside a correlated EXISTS. That keeps the whole filter
- * in ONE query — the alternative (fetch all, filter in JS) is the N+1-shaped
- * pattern the project rules ban.
+ * secondary_muscle_groups is a JSON array column, so the match is an OR of
+ * JSON_CONTAINS probes — one per requested group, all inside the SAME query.
+ * The alternative (fetch all, filter in JS) is the N+1-shaped pattern the
+ * project rules ban.
+ *
+ * Why not the obvious one-call forms: MariaDB has no JSON_OVERLAPS (that is
+ * MySQL 8 only) and no json_each() table function, so neither a single
+ * set-overlap call nor a correlated EXISTS over the array is available here.
+ * JSON_QUOTE turns each bound value into the quoted scalar JSON_CONTAINS wants,
+ * so a group name containing a quote cannot break out of the comparison.
  */
 function secondaryMuscleMatch(muscleGroups: string[]): SQL {
-  const list = sql.join(
-    muscleGroups.map((m) => sql`${m}`),
-    sql`, `,
-  );
-  return sql`exists (
-    select 1 from json_each(${exerciseTemplates.secondaryMuscleGroups})
-    where json_each.value in (${list})
-  )`;
+  return or(
+    ...muscleGroups.map(
+      (m) =>
+        sql`json_contains(${exerciseTemplates.secondaryMuscleGroups}, json_quote(${m}))`,
+    ),
+  )!;
 }
 
 /**
@@ -176,7 +179,8 @@ export async function getCandidates(filter: CandidateFilter = {}): Promise<Catal
   }
 
   // Only rank by primary-match when there is something to match against: a bare
-  // constant here would be parsed by SQLite as an ORDER BY column ordinal.
+  // constant here would be parsed as an ORDER BY column ordinal (MariaDB does
+  // this too, so the guard survived the move off SQLite).
   const order: SQL[] = [];
   if (muscleGroups.length > 0) {
     order.push(
@@ -212,11 +216,17 @@ export async function searchTemplates(query: string, limit = 25): Promise<Catalo
   const trimmed = query.trim();
   if (trimmed === "") return [];
   // Escape LIKE wildcards so a user typing "%" searches for a literal percent.
-  const pattern = `%${trimmed.replace(/[\\%_]/g, "\\$&")}%`;
+  //
+  // The escape character is "!", not the conventional backslash, because a
+  // backslash cannot be written unambiguously here: MariaDB processes
+  // backslash escapes inside string literals, so `escape '\'` reads as an
+  // escaped quote and fails to parse, while the doubled form breaks under
+  // NO_BACKSLASH_ESCAPES instead. "!" means the same thing in every sql_mode.
+  const pattern = `%${trimmed.replace(/[!%_]/g, "!$&")}%`;
   return db
     .select()
     .from(exerciseTemplates)
-    .where(sql`${exerciseTemplates.title} like ${pattern} escape '\\'`)
+    .where(sql`${exerciseTemplates.title} like ${pattern} escape '!'`)
     .orderBy(asc(exerciseTemplates.title))
     .limit(limit);
 }

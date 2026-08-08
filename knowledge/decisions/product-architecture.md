@@ -35,9 +35,11 @@ the official Hevy API ([[hevy-platform]] — requires Hevy Pro).
   Dockerfile, so deploy = run a container next to a volume anywhere. Consequence:
   the phase-1 no-auth app must sit behind an external gate (e.g. Cloudflare
   Access) when exposed publicly.
-- **SQLite + Drizzle for all phase-1 state** — Hevy key, plan history, catalog
-  cache, synced routine ids. Near-zero ops on a persistent box; swaps to Postgres
-  at phase-2 multi-user. Schema and rationale in [[plan-pipeline]].
+- **MariaDB + Drizzle for all phase-1 state** — Hevy key, plan history, catalog
+  cache, synced routine ids. Originally SQLite (chosen for near-zero ops on a
+  persistent box, with a Postgres swap pencilled in for phase-2 multi-user);
+  superseded by the owner's call to run MariaDB now — see [[mariadb-migration]]
+  for what that traded away. Schema and rationale in [[plan-pipeline]].
 - **Personal single-user tool first.** No auth in phase 1; multi-user accounts are
   phase 2, mobile a possible phase 3.
 - **Provider-agnostic LLM layer via the Vercel AI SDK** (round 2). Owner has not
