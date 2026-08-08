@@ -83,10 +83,16 @@ only delay a failure the operator needs to see. The Dockerfile's healthcheck
 ## Verified
 
 `npm run build` passes, including TypeScript, and emits the standalone server.
-Neither the Docker build nor `compose up` has been run here — **no Docker daemon
-on this machine**, which is also why the DB-backed suites are unrun
-([[testing-setup]]). The generated SQL was checked against the dialect instead,
-see [[mariadb-migration]].
+The app itself is verified end to end against a real MariaDB — all routes, the
+boot migration, and 63/63 tests ([[mariadb-migration]]).
+
+> [!warning] The container path is still unobserved
+> Neither the Docker build nor `compose up` has been run — **no Docker daemon on
+> this machine** (firmware virtualization is available, but WSL2 has no distro).
+> Local dev uses a natively-installed MariaDB on 3306 instead. So the compose
+> wiring, the `depends_on` healthcheck, and the boot-migration retry are
+> reasoned-about, not tested. Local runs 12.3 (rolling) against the 11.4 (LTS)
+> pinned in the compose files. Treat the first `compose up` as unproven ground.
 
 ## Still open
 

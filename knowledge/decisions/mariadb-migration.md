@@ -37,15 +37,24 @@ multi-user than a SQLite→Postgres swap would have been.
 
 ## Dialect traps
 
-> [!warning] Drizzle's `json()` does not round-trip on MariaDB
+> [!note] Drizzle's `json()` and MariaDB — the risk is real but version-dependent
 > The built-in mysql `json()` column defines `mapToDriverValue` but **no**
-> `mapFromDriverValue` — on read it trusts the driver. That works on MySQL 8,
+> `mapFromDriverValue` — on read it trusts the driver. That is safe on MySQL 8,
 > where `JSON` is protocol type 245 and mysql2 auto-parses it. MariaDB's `JSON`
-> is only an alias for `LONGTEXT` with a `JSON_VALID()` check, so the protocol
-> reports text, mysql2 returns the raw string, and drizzle passes it straight
-> through. The failure is silent and late: `plans.request` comes back a string
-> and the first property access throws. `src/lib/db/json-column.ts` maps both
-> directions instead; do not replace it with `json()`.
+> is only an alias for `LONGTEXT` with a `JSON_VALID()` check, so the worry was
+> that the driver hands back a raw string and drizzle passes it through —
+> failing silently at the first property access rather than at the query.
+>
+> **Measured on MariaDB 12.3.2 + mysql2 3.23.2:** the column *is* reported as
+> protocol type 252 (LONGTEXT), not 245 — but mysql2 parses it anyway, using the
+> extended metadata MariaDB 10.5+ sends marking the column format as JSON. Both
+> the text and binary protocols returned an object. So `json()` would have
+> worked on this stack; the original claim that it could not was wrong.
+>
+> `src/lib/db/json-column.ts` is kept regardless, because it does not depend on
+> that path — an older MariaDB, or a driver ignoring extended metadata, returns
+> the string. Its `typeof` branch makes it a no-op when the driver has already
+> parsed, so it costs nothing and drops a version-dependent assumption.
 
 Everything else that had to change, and why:
 
@@ -61,13 +70,23 @@ Everything else that had to change, and why:
 
 ## Verification status
 
-> [!warning] The DB-backed suites have not been run
-> There is no Docker daemon and no MariaDB on the development machine, so
-> `npm test` could not execute against a real server. What *was* verified:
-> `npm run build` (including TypeScript), `npm run lint`, `drizzle-kit generate`,
-> and a scratch check compiling every translated query through drizzle's mysql
-> dialect — confirming `json_contains`/`json_quote` with bound parameters, no
-> `json_each`, a parseable `escape '!'`, `on duplicate key update`, and the JSON
-> column mapping in both directions. The 63 tests were green on SQLite
-> immediately before the change. First run on a machine with Docker is the
-> outstanding step.
+**Verified end to end on 2026-08-08** against MariaDB 12.3.2 installed natively
+on the dev machine (`winget install MariaDB.Server`; no Docker, no
+virtualization — the firmware supports it but WSL2 has no distro):
+
+- **63/63 tests pass** against a real server, with `TEST_DATABASE_URL` pointing
+  at it. Each file created, migrated, and dropped its own database.
+- The boot migration ran on first request and produced all four tables plus
+  `__drizzle_migrations`.
+- Every route answers: `/`, `/settings`, `/plans/new` → 200, and a missing plan
+  id → 404. No errors in the dev server log.
+- `npm run build` (incl. TypeScript), `npm run lint`, `drizzle-kit generate` all
+  green.
+
+> [!warning] Still unverified: the container path
+> `docker compose up` and the Dockerfile have never been run, so the compose
+> wiring, the `depends_on` healthcheck, and the boot-migration retry are
+> reasoned-about, not observed ([[deployment]]). Local dev talks to a native
+> MariaDB on 3306 instead. Note also that local is 12.3 (rolling) while the
+> compose files pin 11.4 (LTS) — immaterial for the SQL used here, but it means
+> "works locally" is not yet "works in the image".

@@ -139,3 +139,19 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   were source — 769 phantom errors. Build, lint and generate green; **the
   DB-backed suites are unrun** (no Docker on this machine), so the translated
   SQL was verified by compiling it through drizzle's mysql dialect instead.
+- 2026-08-08 — Verified the MariaDB move end to end, and **corrected a claim I
+  got wrong**. Installed MariaDB 12.3.2 natively (no Docker on this box; WSL2
+  has no distro), created `hevy_planner`, ran the suite against it: **63/63**.
+  Boot migration built all four tables plus `__drizzle_migrations` on first
+  request; `/`, `/settings`, `/plans/new` all 200 and a missing id 404s, with a
+  clean server log. The correction: [[mariadb-migration]] asserted that mysql2
+  returns MariaDB JSON columns unparsed, so drizzle's `json()` could not
+  round-trip. Half true. The column IS reported as protocol type 252 (LONGTEXT),
+  not 245 — but mysql2 3.23.2 parses it regardless, via the extended metadata
+  MariaDB 10.5+ sends marking the format as JSON; both text and binary protocols
+  returned an object. `json()` would have worked here. `json-column.ts` stays,
+  now justified as version-independence (older servers and drivers that ignore
+  extended metadata do return the string) rather than as a fix for a live bug.
+  Lesson worth keeping: "the protocol type is wrong" did not imply "the driver
+  gets it wrong" — the vendor shipped a compatibility path I had not accounted
+  for, and only running it showed that. Still untested: the container path.

@@ -38,6 +38,14 @@ server cannot be conjured per test, so `docker-compose.test.yml` provides one:
 removes it. `TEST_DATABASE_URL` points the suite at your own server instead —
 it will `CREATE` and `DROP` databases there, so never aim it at real data.
 
+> [!tip] Docker is not actually required
+> The dev machine has no Docker daemon, so the suite is run against the natively
+> installed MariaDB instead, and passes 63/63:
+> `TEST_DATABASE_URL="mysql://root:<pw>@127.0.0.1:3306" npm test`.
+> The throwaway-database-per-file design means a shared server is safe — the
+> suite only ever touches databases it created. That is the route to use here
+> until Docker exists on this box ([[mariadb-migration]]).
+
 ## Testing DB-backed modules
 
 `src/lib/db/client.ts` resolves `DATABASE_URL` **at import time** into a module
