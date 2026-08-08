@@ -64,23 +64,30 @@ export async function createPlanAction(
   redirect(destination);
 }
 
-/** Re-runs generation for an existing plan against its stored request. */
+/**
+ * Re-runs generation for an existing plan against its stored request.
+ *
+ * Redirects to a freshly-stamped preview URL rather than returning in place:
+ * the "which generator built this" banner is driven by those query params, so
+ * leaving them alone would leave the previous plan's provenance on screen
+ * describing a plan that no longer exists.
+ */
 export async function regeneratePlanAction(planId: number): Promise<ActionState> {
   const row = await getPlan(planId);
   if (!row) return errorState("Plan not found.");
 
+  let destination: string;
   try {
     const result = await generatePlan(row.request);
     await savePlan(planId, result.plan);
-    revalidatePath(`/plans/${planId}`);
-    return successState(
-      result.fallbackReason
-        ? "Regenerated with the built-in generator (no LLM available)."
-        : "Plan regenerated.",
-    );
+    destination = previewPath(planId, result.source, Boolean(result.fallbackReason));
   } catch (error) {
     return errorState(describeHevyError(error, "read", "Could not regenerate the plan."));
   }
+
+  revalidatePath(`/plans/${planId}`);
+  revalidatePath("/");
+  redirect(destination);
 }
 
 /**

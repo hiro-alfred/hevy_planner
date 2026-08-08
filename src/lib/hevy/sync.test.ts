@@ -1,108 +1,25 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import type { Plan } from "@/lib/planner/schema";
 import { HevyApiError } from "./client";
-import type { HevyClient } from "./client";
+import { fixturePlan as plan, recorder, resetPlanState, createTempDatabase } from "@/test/sync-fixture";
 
 // Sync is the one place this app writes to Hevy, and Hevy has no DELETE and a
 // routine cap — a duplicate routine is permanent. These tests pin the
 // create-once-then-PUT contract, including what happens when a sync dies
-// halfway through.
+// halfway through, races another sync, or is handed a plan it must refuse.
 
+const database = createTempDatabase();
 let sync: typeof import("./sync");
-let plansModule: typeof import("@/lib/plans");
-let dir: string;
-
-beforeAll(async () => {
-  dir = mkdtempSync(join(tmpdir(), "hevy-sync-"));
-  process.env.DATABASE_PATH = join(dir, "test.sqlite");
-  const { runMigrations } = await import("@/lib/db/migrate");
-  runMigrations();
-  sync = await import("./sync");
-  plansModule = await import("@/lib/plans");
-});
-
-afterAll(() => {
-  try {
-    rmSync(dir, { recursive: true, force: true });
-  } catch {
-    /* Windows holds the SQLite lock until exit */
-  }
-});
-
-function plan(dayTitles = ["Push", "Pull"]): Plan {
-  return {
-    title: "Test Plan",
-    progression: "Add weight.",
-    days: dayTitles.map((title) => ({
-      title,
-      exercises: [
-        {
-          exerciseTemplateId: `tmpl-${title}`,
-          name: title,
-          restSeconds: 90,
-          notes: null,
-          sets: [{ type: "normal", repRange: { start: 8, end: 12 }, weightKg: null }],
-        },
-      ],
-    })),
-  };
-}
-
-interface Recorder {
-  client: HevyClient;
-  folders: string[];
-  creates: string[];
-  updates: string[];
-}
-
-/** Stub Hevy client. `failOnCreate` makes the Nth create (1-based) throw. */
-function recorder(options: { failOnCreate?: number; createStatus?: number } = {}): Recorder {
-  const state = { folders: [] as string[], creates: [] as string[], updates: [] as string[] };
-  let folderId = 100;
-  let routineId = 0;
-
-  const client = {
-    createRoutineFolder: async (title: string) => {
-      state.folders.push(title);
-      folderId += 1;
-      return { routine_folder: { id: folderId, index: 0, title } };
-    },
-    createRoutine: async (routine: { title: string }) => {
-      if (options.failOnCreate && state.creates.length + 1 === options.failOnCreate) {
-        throw new HevyApiError(options.createStatus ?? 500, "boom");
-      }
-      state.creates.push(routine.title);
-      routineId += 1;
-      return { routine: { id: `routine-${routineId}` } };
-    },
-    updateRoutine: async (id: string, routine: { title: string }) => {
-      state.updates.push(`${id}:${routine.title}`);
-      return { routine: { id } };
-    },
-  } as unknown as HevyClient;
-
-  // The arrays are shared with the stub, so assertions see calls as they happen.
-  return { client, folders: state.folders, creates: state.creates, updates: state.updates };
-}
-
 let planId: number;
 
+beforeAll(async () => {
+  await database.migrate();
+  sync = await import("./sync");
+});
+
+afterAll(() => database.cleanup());
+
 beforeEach(async () => {
-  const { db } = await import("@/lib/db/client");
-  const { syncLinks, plans } = await import("@/lib/db/schema");
-  await db.delete(syncLinks);
-  await db.delete(plans);
-  planId = await plansModule.createPlan({
-    goal: "Build muscle",
-    sessionMinutes: 60,
-    sessionsPerWeek: 2,
-    split: "auto",
-    experience: "intermediate",
-    equipment: ["barbell"],
-  });
+  planId = await resetPlanState();
 });
 
 describe("first sync", () => {
@@ -263,47 +180,20 @@ describe("refusing unsafe writes", () => {
     expect(rec.folders).toEqual([]);
     expect(rec.creates).toEqual([]);
   });
-});
 
-describe("getSyncState", () => {
-  it("reports nothing synced for a fresh plan", async () => {
-    expect(await sync.getSyncState(planId, plan())).toMatchObject({
-      syncedDays: 0,
-      hasPendingChanges: true,
-    });
-  });
+  /**
+   * An id Hevy doesn't know 400s on write — but only after the earlier days are
+   * already permanent routines. The generator's validator flags this, yet
+   * nothing stopped the user pressing sync on a plan showing that warning.
+   */
+  it("refuses a plan referencing an exercise outside the cached catalog", async () => {
+    const bogus = plan();
+    bogus.days[1]!.exercises[0]!.exerciseTemplateId = "not-in-catalog";
 
-  it("reports up-to-date after a sync, and pending after an edit", async () => {
-    await sync.syncPlan(recorder().client, planId, plan());
-    expect(await sync.getSyncState(planId, plan())).toMatchObject({
-      syncedDays: 2,
-      hasPendingChanges: false,
-    });
-
-    const edited = plan();
-    edited.days[0]!.exercises[0]!.sets.push({
-      type: "normal",
-      repRange: { start: 8, end: 12 },
-      weightKg: null,
-    });
-    expect(await sync.getSyncState(planId, edited)).toMatchObject({ hasPendingChanges: true });
-  });
-
-  it("treats a newly added training day as pending", async () => {
-    await sync.syncPlan(recorder().client, planId, plan());
-    const withExtraDay = plan(["Push", "Pull", "Legs"]);
-    expect(await sync.getSyncState(planId, withExtraDay)).toMatchObject({
-      hasPendingChanges: true,
-    });
-  });
-
-  it("never reports up-to-date while a routine is stranded by a shrunken plan", async () => {
-    await sync.syncPlan(recorder().client, planId, plan(["Push", "Pull"]));
-    // The plan lost a day; the routine for it still exists in Hevy and cannot
-    // be deleted through the API.
-    expect(await sync.getSyncState(planId, plan(["Push"]))).toMatchObject({
-      staleRoutines: 1,
-      hasPendingChanges: true,
-    });
+    const rec = recorder();
+    await expect(sync.syncPlan(rec.client, planId, bogus)).rejects.toThrow(/not in the cached/i);
+    expect(rec.folders).toEqual([]);
+    expect(rec.creates).toEqual([]);
   });
 });
+

@@ -41,8 +41,11 @@ export const planRequestSchema = z.object({
   sessionsPerWeek: z.number().int().min(1).max(7),
   split: z.enum(["push_pull_legs", "upper_lower", "full_body", "auto"]),
   experience: z.enum(["beginner", "intermediate", "advanced"]),
-  // Hevy EquipmentCategory values the user has access to.
-  equipment: z.array(z.string()),
+  // Hevy EquipmentCategory values the user has access to. At least one is
+  // required: downstream an empty array means "no filter — anything goes",
+  // which is the opposite of what someone who unticked every box intends.
+  // Bodyweight-only trainees pick "none", which IS a category.
+  equipment: z.array(z.string()).min(1),
 });
 
 export type SetType = z.infer<typeof setTypeSchema>;

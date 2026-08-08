@@ -107,3 +107,17 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   with a duplicate-row fixture), syncing a deleted plan is refused instead of
   stranding a folder, and the pre-migration folder id is backfilled onto the
   plan row. Lost-response duplication documented as a known gap in [[hevy-sync]].
+- 2026-08-08 — FINAL cross-cutting review (Fable, whole run 3413321..HEAD):
+  no security findings (both keys traced end to end), no duplicated core logic,
+  no dead code beyond what [[hot]] records on purpose — but three seams BETWEEN
+  milestones, all fixed. (1) Sync never re-ran the validator, so a user could
+  press Sync on a plan whose own warning said its exercise ids don't resolve —
+  it now refuses unresolvable ids before the first API call. (2) `deletePlan`
+  did not take the sync lock, so a delete landing mid-sync could create a Hevy
+  routine whose id could never be recorded. (3) The dashboard derived sync state
+  from the `status` column while the plan page used content hashes: regenerating
+  a synced plan reproduced an identical plan, so one screen said "Not synced"
+  while the other said "up to date". Both now read the hashes. Minor: the
+  provenance banner survived a regenerate and could describe the previous plan;
+  empty equipment meant "anything" while the error text said one was required.
+  63 tests. Run complete.

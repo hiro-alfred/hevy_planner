@@ -5,6 +5,7 @@ import { plans, syncLinks } from "@/lib/db/schema";
 import { UserFacingError } from "@/lib/errors";
 import type { Plan } from "@/lib/planner/schema";
 import { dayToRoutine, routineHash } from "@/lib/planner/to-hevy";
+import { getTemplatesByIds } from "./catalog";
 import type { HevyClient } from "./client";
 import { withPlanLock } from "./plan-lock";
 
@@ -25,7 +26,7 @@ export interface SyncSummary {
   folderId: number;
 }
 
-export function planFolderTitle(plan: Plan): string {
+function planFolderTitle(plan: Plan): string {
   return plan.title;
 }
 
@@ -58,6 +59,25 @@ async function runSync(
     throw new UserFacingError(
       `Day ${emptyDay + 1} ("${plan.days[emptyDay]!.title}") has no exercises, so it cannot be synced. ` +
         `Regenerate the plan, or widen the equipment selection so every day can be filled.`,
+    );
+  }
+
+  // Every exercise id must resolve, checked HERE and not only at generation
+  // time. An id Hevy does not know 400s on write — but only once the earlier
+  // days have already been created as permanent routines, leaving the plan
+  // half-pushed. The generator's validator catches this, yet nothing stopped a
+  // user from pressing sync on a plan whose warnings said exactly that.
+  const known = await getTemplatesByIds(
+    plan.days.flatMap((day) => day.exercises.map((exercise) => exercise.exerciseTemplateId)),
+  );
+  const unknown = plan.days.flatMap((day) =>
+    day.exercises.filter((exercise) => !known.has(exercise.exerciseTemplateId)),
+  );
+  if (unknown.length > 0) {
+    throw new UserFacingError(
+      `${unknown.length} exercise${unknown.length === 1 ? "" : "s"} in this plan (for example "${unknown[0]!.name}") ` +
+        `are not in the cached Hevy catalog, so syncing would fail partway and leave routines behind. ` +
+        `Refresh the catalog on the settings page, or regenerate the plan.`,
     );
   }
 

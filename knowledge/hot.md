@@ -16,63 +16,64 @@ latest state. History belongs in [[log]] — this page holds only the CURRENT st
 Keep the four sections below; they are the template.
 
 ## Active task
-**Scaffold → functional end-to-end site**, run as a milestone loop (one milestone per
-iteration: implement → verify → commit → background review → next). Design is fixed by
-[[plan-pipeline]] and [[hevy-api]]; this run is implementation, not redesign.
+**COMPLETE: scaffold → working end-to-end product.** All six planned milestones
+are done, reviewed, and pushed on branch `worktree-e2e-build` (7 commits,
+4f6b2fd..HEAD, branched from `dev` at 3413321). **Not yet merged into `dev`** —
+that is the first thing to decide next session.
 
-Milestone queue: (1) catalog refresh + candidate filtering, (2) settings page + Hevy
-key action, (3) plan form → generate → preview → sync, (4) dashboard home,
-(5) lint/cleanup pass, (6) optional deploy readiness.
-
-**DONE: milestone 1** (catalog service, 4f6b2fd — [[catalog-service]]); reviewed,
-no blockers, findings folded into milestone 2.
-**DONE: milestone 2** (settings + key handling, fbe29d5 — [[key-handling]]);
-reviewed, one important key-leak finding fixed in milestone 3.
-**DONE: milestone 3** (plan flow — [[plan-generation]], [[hevy-sync]]).
-**DONE: milestone 4** (dashboard home page).
-**DONE: milestone 5** (cleanup pass).
-**DONE: milestone 6** (deploy readiness — [[deployment]]).
+A user can now: enter a Hevy key on `/settings` → fetch the exercise catalog →
+request a plan on `/plans/new` → get one (LLM if a provider key is set,
+otherwise the deterministic generator) → preview it on `/plans/[id]` → sync it
+to Hevy as a folder plus one routine per training day.
 
 ## State reached
-- Work happens on git worktree branch `worktree-e2e-build`, branched from `dev` at
-  3413321. Merge back to `dev` when the loop finishes.
-- Hevy API verified against the official spec, pinned at `docs/hevy-openapi.json`;
-  facts + traps in [[hevy-api]] (no DELETE, routine-cap 403, no catalog search,
-  kg only, rep ranges supported, superset_id/supersets_id quirk).
-- Full core-flow design in [[plan-pipeline]]: 4-stage pipeline, JSON plan doc +
-  sync_links data model, create-once-then-PUT sync, minimal-plus edit scope,
-  plaintext key in settings table, kg default (lbs display-only later).
-- Scaffold committed: create-next-app (TS, Tailwind, npm) + `src/lib/db/`,
-  `src/lib/planner/schema.ts`, `src/lib/hevy/` (typed client; catalog/sync stubs),
-  `drizzle.config.ts`, `.env.example`.
-- DB wiring DONE: initial migration in `drizzle/`, auto-applied on every server boot
-  via `src/instrumentation.ts` → `src/lib/db/migrate.ts`. Cold boot verified.
-- `npm run build`, `npm run lint`, wiki tests: green at 3413321.
+- **Milestones**: catalog service ([[catalog-service]]), settings + key handling
+  ([[key-handling]]), plan flow ([[plan-generation]], [[hevy-sync]]), dashboard,
+  cleanup, deploy readiness ([[deployment]]).
+- **Quality gates**: `npm run build`, `npm run lint`, 63 vitest tests, and the
+  wiki tests all green. No file over 300 lines. Every route verified against a
+  running server, including 404 and first-run empty states.
+- **Verified end to end** on a clean database and on a 192-exercise seeded
+  catalog: a 4-day upper/lower plan generated and rendered with zero
+  validation violations.
+- **Reviewed after every commit** (Fable subagents). Every finding was fixed,
+  not deferred — see [[log]]. The write path to Hevy took the most iteration
+  because nothing written there can be deleted.
+- Migration `0001` adds `plans.hevy_folder_id` and a unique index on
+  `sync_links(plan_id, day_index)`; it self-heals a database that already
+  contains duplicate links. Migrations apply automatically on boot.
 
 ## Open questions / dissents
-- LLM provider still undecided. The AI SDK is wired with the provider read from
-  env (`anthropic` + `claude-opus-5` defaults, `@ai-sdk/anthropic` installed) and
-  a deterministic rule-based fallback, so the site works with no key. The LLM
-  path has NOT been exercised against a live provider — only the fallback has.
-- Generation uses `generateObject` in a server action, not `streamObject` behind
-  a route handler as [[plan-pipeline]] specifies. Deliberate simplification;
-  progressive preview is still open work. Recorded in [[plan-generation]].
-- Editing is preview-only: the "minimal-plus" swap-exercise and set/rep/rest
-  tweaks from [[plan-pipeline]] are not built yet.
-- Exports that exist and are tested but nothing in the app calls YET, kept
-  deliberately as the surface those features need — reviewers keep spotting
-  them, so recording the decision here: `searchTemplates`, `getTemplateById`,
-  `getAvailableEquipment` (for the swap-exercise picker) and
-  `getWeightUnit` / `setWeightUnit` (for the lbs display toggle). If either
-  feature gets dropped, delete the matching accessors with it.
-- VPS vendor undecided; decision deferred until first deploy.
+- **The sync path has never run against the real Hevy API.** It is covered by
+  unit tests against a stub client, but a Hevy Pro key was not available. This
+  is the single biggest untested surface — treat the first real sync as an
+  experiment, on a throwaway Hevy account if possible.
+- **The LLM path has never run against a live provider** either, for the same
+  reason. The deterministic fallback is what has actually been exercised.
+  Provider choice is still open (`anthropic` + `claude-opus-5` are only
+  defaults; `@ai-sdk/anthropic` is installed).
+- Generation uses `generateObject` in a server action, not `streamObject`
+  behind a route handler as [[plan-pipeline]] specifies — deliberate
+  simplification, recorded in [[plan-generation]]. Progressive preview is unbuilt.
+- The "minimal-plus" editor from [[plan-pipeline]] (swap exercise, tweak
+  sets/reps/rest) is unbuilt; the preview is read-only.
+- Known unfixed gap in [[hevy-sync]]: if a create succeeds but its response is
+  lost, the retry duplicates. Closing it needs a reconcile-by-title read.
+- Exports that exist and are tested but nothing calls YET, kept as the surface
+  their planned feature needs — reviewers keep re-flagging them, so recording
+  the decision: `searchTemplates`, `getTemplateById`, `getAvailableEquipment`
+  and `getCandidates`'s `includeNonRepBased` (swap-exercise picker);
+  `getWeightUnit` / `setWeightUnit` (lbs display toggle). Delete them with the
+  feature if it is dropped.
+- No authentication. Exposing this to the internet needs an external auth gate
+  ([[deployment]]).
+- VPS vendor still undecided.
 
 ## Next steps
-1. Milestone 1: implement `refreshCatalog` + `getCandidates` in
-   `src/lib/hevy/catalog.ts` (page size 100, single-transaction upsert, no N+1).
-2. Milestone 2: settings page + masked Hevy key entry + test-connection action.
-3. Milestone 3: plan request form → generation → preview → sync.
-4. Milestone 4: dashboard home page; milestone 5: lint/cleanup pass.
-5. Optional milestone 6: `output: 'standalone'` + Dockerfile.
-6. On finish: resolve all background-review findings, then full wrap-up
-   (hot.md / [[log]] / [[index]]) and merge the worktree branch into `dev`.
+1. **Merge `worktree-e2e-build` into `dev`** (or open a PR) — the work is
+   complete and pushed but still on its own branch.
+2. Do a first real sync against a Hevy Pro account and see what the API
+   actually does, especially the routine cap and PUT full-replace.
+3. Set `LLM_API_KEY` and exercise the LLM path once; compare its plans against
+   the deterministic ones and decide the provider.
+4. Then pick up either the minimal-plus editor or streaming generation.

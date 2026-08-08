@@ -23,12 +23,24 @@ LLM anywhere near the write path.
 
 - **One folder per plan, one routine per training day.** The folder id lives on
   the **plans row** and is written the instant the create returns.
-- **Nothing empty is ever pushed.** A day with no exercises is refused before
-  the first API call: an empty routine would permanently consume part of the
-  routine cap for something useless. Generation refuses earlier still — any
-  training day with zero candidates aborts the whole request.
+- **Nothing empty or unresolvable is ever pushed.** Before the first API call
+  sync refuses a day with no exercises, and refuses any plan referencing an
+  exercise missing from the cached catalog. Both would otherwise fail *partway*
+  — after earlier days already existed as permanent routines. Generation
+  refuses earlier still: any training day with zero candidates aborts the
+  request.
+
+> [!note] The validator has to run at the sync boundary too
+> Generation validates, and the preview shows the warnings — but nothing stopped
+> a user pressing Sync on a plan whose warning said "these ids don't resolve".
+> A rule enforced only where it is first computed is not enforced; it has to be
+> checked where the irreversible thing happens.
 - **One sync at a time per plan** (`lib/hevy/plan-lock.ts`). Runs queue rather
-  than fail, so the second one simply finds every day already linked.
+  than fail, so the second one simply finds every day already linked. Deleting
+  a plan takes the same lock — otherwise a delete landing mid-sync pulls the
+  plans row out from under the loop, and the next routine create succeeds in
+  Hevy while recording its id fails on the foreign key, leaving a permanent
+  routine whose id nothing holds.
 - **`UNIQUE(plan_id, day_index)`** on `sync_links` as the backstop underneath
   that lock.
 - **Create once, then PUT.** A day with no link is created; a day with a link is

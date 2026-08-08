@@ -1,7 +1,9 @@
 import "server-only";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { plans, syncLinks } from "@/lib/db/schema";
+import { withPlanLock } from "@/lib/hevy/plan-lock";
+import { dayToRoutine, routineHash } from "@/lib/planner/to-hevy";
 import type { Plan, PlanRequest } from "@/lib/planner/schema";
 
 // Persistence for plans. The plan itself is a JSON document, not normalised
@@ -11,10 +13,13 @@ import type { Plan, PlanRequest } from "@/lib/planner/schema";
 export type PlanRow = typeof plans.$inferSelect;
 export type PlanStatus = PlanRow["status"];
 
+/** What the dashboard says about a plan's relationship to Hevy. */
+export type PlanSyncLabel = "draft" | "not_synced" | "changes_pending" | "synced";
+
 export interface PlanListItem {
   id: number;
   title: string;
-  status: PlanStatus;
+  syncLabel: PlanSyncLabel;
   sessionsPerWeek: number;
   goal: string;
   createdAt: string;
@@ -22,43 +27,72 @@ export interface PlanListItem {
 }
 
 /**
- * Plans for the dashboard, with their synced-day counts.
+ * Plans for the dashboard.
  *
- * The count comes from a grouped sub-select joined in one statement — counting
- * per plan in a loop would be exactly the N+1 the project rules ban.
+ * The sync label is derived from sync_links content hashes — the SAME rule the
+ * plan page uses — rather than from the `status` column. The two used to
+ * disagree: regenerating a synced plan reset status to "generated" even when
+ * the deterministic generator reproduced a byte-identical plan, so the
+ * dashboard said "Not synced" while the plan page said "up to date". Hashes are
+ * the truth; a status enum that has to be kept in step with them is a second
+ * source waiting to drift.
+ *
+ * Two queries total, not one per plan.
  */
 export async function listPlans(): Promise<PlanListItem[]> {
-  const counts = db
-    .select({
-      planId: syncLinks.planId,
-      syncedDays: sql<number>`count(*)`.as("synced_days"),
-    })
-    .from(syncLinks)
-    .groupBy(syncLinks.planId)
-    .as("counts");
+  const [rows, links] = await Promise.all([
+    db
+      .select({
+        id: plans.id,
+        request: plans.request,
+        plan: plans.plan,
+        createdAt: plans.createdAt,
+      })
+      .from(plans)
+      .orderBy(desc(plans.createdAt)),
+    db.select().from(syncLinks),
+  ]);
 
-  const rows = await db
-    .select({
-      id: plans.id,
-      request: plans.request,
-      plan: plans.plan,
-      status: plans.status,
-      createdAt: plans.createdAt,
-      syncedDays: counts.syncedDays,
-    })
-    .from(plans)
-    .leftJoin(counts, eq(counts.planId, plans.id))
-    .orderBy(desc(plans.createdAt));
+  const linksByPlan = new Map<number, (typeof links)[number][]>();
+  for (const link of links) {
+    const list = linksByPlan.get(link.planId);
+    if (list) list.push(link);
+    else linksByPlan.set(link.planId, [link]);
+  }
 
-  return rows.map((row) => ({
-    id: row.id,
-    title: row.plan?.title ?? "Untitled plan",
-    status: row.status,
-    sessionsPerWeek: row.request.sessionsPerWeek,
-    goal: row.request.goal,
-    createdAt: row.createdAt,
-    syncedDays: row.syncedDays ?? 0,
-  }));
+  return rows.map((row) => {
+    const planLinks = linksByPlan.get(row.id) ?? [];
+    return {
+      id: row.id,
+      title: row.plan?.title ?? "Untitled plan",
+      syncLabel: describeSyncLabel(row.plan, planLinks),
+      sessionsPerWeek: row.request.sessionsPerWeek,
+      goal: row.request.goal,
+      createdAt: row.createdAt,
+      syncedDays: planLinks.length,
+    };
+  });
+}
+
+type SyncLinkRow = typeof syncLinks.$inferSelect;
+
+function describeSyncLabel(plan: Plan | null, links: SyncLinkRow[]): PlanSyncLabel {
+  if (!plan) return "draft";
+  if (links.length === 0) return "not_synced";
+
+  const byDay = new Map(links.map((link) => [link.dayIndex, link]));
+  const folderId = links[0]!.hevyFolderId;
+
+  const changed = plan.days.some((day, dayIndex) => {
+    const link = byDay.get(dayIndex);
+    if (!link) return true;
+    return link.contentHash !== routineHash(dayToRoutine(day, folderId, plan.progression));
+  });
+  // Routines for days the plan no longer has are stranded in Hevy; that is not
+  // "synced" either.
+  const stranded = links.some((link) => link.dayIndex >= plan.days.length);
+
+  return changed || stranded ? "changes_pending" : "synced";
 }
 
 export async function getPlan(id: number): Promise<PlanRow | null> {
@@ -91,8 +125,15 @@ export async function markSynced(id: number): Promise<void> {
 }
 
 export async function deletePlan(id: number): Promise<void> {
-  // sync_links rows reference the plan; clear them first so the FK holds.
-  // The Hevy routines themselves survive — the API has no DELETE.
-  await db.delete(syncLinks).where(eq(syncLinks.planId, id));
-  await db.delete(plans).where(eq(plans.id, id));
+  // Serialised against syncing THIS plan. A delete landing mid-sync would pull
+  // the plans row out from under the loop: the next createRoutine still
+  // succeeds against Hevy, but recording its id fails on the foreign key —
+  // leaving a permanent routine whose id nothing holds. Sync checks the plan
+  // exists, but only once at the start, so the check alone is not enough.
+  await withPlanLock(id, async () => {
+    // sync_links rows reference the plan; clear them first so the FK holds.
+    // The Hevy routines themselves survive — the API has no DELETE.
+    await db.delete(syncLinks).where(eq(syncLinks.planId, id));
+    await db.delete(plans).where(eq(plans.id, id));
+  });
 }

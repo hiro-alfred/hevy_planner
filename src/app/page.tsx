@@ -7,9 +7,10 @@ import { getHevyKeyStatus } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_LABEL: Record<PlanListItem["status"], string> = {
-  draft: "Draft",
-  generated: "Not synced",
+const SYNC_LABEL: Record<PlanListItem["syncLabel"], string> = {
+  draft: "Not generated",
+  not_synced: "Not synced",
+  changes_pending: "Changes to sync",
   synced: "Synced",
 };
 
@@ -27,7 +28,7 @@ function PlanRow({ plan }: { plan: PlanListItem }) {
           </span>
         </span>
         <span className="text-xs opacity-70">
-          {STATUS_LABEL[plan.status]}
+          {SYNC_LABEL[plan.syncLabel]}
           {plan.syncedDays > 0 && ` · ${plan.syncedDays} routines`}
         </span>
       </Link>
