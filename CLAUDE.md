@@ -15,7 +15,7 @@ nothing — neither means it is missing).
   long/risky work so an abandoned session stays recoverable.
 - WRAP-UP ("wrap up" or any equivalent): overwrite hot.md with active task / state reached /
   open questions / next steps; file finished knowledge into pages, update index.md, append
-  to log.md.
+  to log.md. Then git commit the session's changes (and push).
 - Author per the **obsidian-markdown skill** + knowledge/schema.md; no orphans (enforced by
   tests/test_knowledge_wiki.py). Docs and code stay the source of truth — a conflicting
   wiki page is stale; fix the wiki and log it.
