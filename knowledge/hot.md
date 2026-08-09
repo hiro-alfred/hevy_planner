@@ -72,10 +72,15 @@ write both still need the owner, and the boot-migration retry still has not fire
   that cannot be deleted.
 - `.claude/worktrees/e2e-build` is fully merged and redundant; safe to
   `git worktree remove`.
-- The **obsidian-cli skill documents the wrong argument names**: its
-  `vault="knowledge" read file="hot.md"` form hangs (it launches the Obsidian
-  app instead of querying). CLAUDE.md's `obsidian read path=hot.md` is correct.
-  The skill file has not been fixed.
+- **The first `obsidian` command of a session can hang for the whole session,
+  and that is not a syntax error.** With no CLI-listening Obsidian instance
+  present, the first invocation *becomes the host process*: it loads
+  `obsidian.asar` and blocks forever, and every later `obsidian` command is
+  served BY it (they appear in its log as `Received command line [...]`). So
+  call one hangs and calls two onward work. Backgrounding the first call and
+  carrying on is the right move. Whether the skill's `vault=…`/`file=…` form is
+  also wrong is UNTESTED — only CLAUDE.md's `path=` form has actually been run
+  here.
 
 ## Local dev setup (this machine)
 MariaDB 12.3.2 native via winget as a Windows service; the `mariadb` CLI is not
