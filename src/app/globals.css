@@ -1,34 +1,45 @@
 @import "tailwindcss";
-@import "./hud.css";
-@import "./hud-controls.css";
+@import "./ui.css";
+@import "./ui-controls.css";
 @import "./animations.css";
 
-/* Neon-HUD theme.
+/* Graphite theme.
  *
- * Dark only, on purpose: the whole look is emissive — glow, scanlines and thin
- * neon hairlines only read against a near-black ground, and a light variant
- * would be a second design rather than an inversion of this one. The
- * prefers-color-scheme block the starter shipped with is gone for that reason.
+ * Dark, but not emissive: the previous neon-HUD look carried its identity in
+ * glow, scanlines and a drifting grid, all of which competed with the data —
+ * and this app is almost entirely data (names, sets, reps, rest). Here the
+ * identity comes from type scale, spacing and a single accent, so contrast is
+ * spent on content instead of decoration.
+ *
+ * Dark only, still: a light variant is a second design rather than an
+ * inversion, and there is no toggle to choose between them.
  */
 @theme {
-  --color-hud-bg: #04060c;
-  --color-hud-bg-2: #070c17;
-  --color-hud-panel: #0a1120;
-  --color-hud-line: #17324d;
-  --color-hud-line-soft: #0f2338;
+  --color-ui-bg: #0e0f11;
+  --color-ui-surface: #17191c;
+  --color-ui-surface-2: #1d2024;
+  --color-ui-inset: #101215;
+  --color-ui-line: #292d33;
+  --color-ui-line-soft: #212429;
 
-  --color-hud-cyan: #22e0ff;
-  --color-hud-magenta: #ff3ecb;
-  --color-hud-amber: #ffb020;
-  --color-hud-danger: #ff4d6d;
-  --color-hud-ok: #37f5a8;
+  /* One accent. It marks the primary action, the active nav item and the
+   * current day — nothing else, or it stops meaning "here". */
+  --color-ui-accent: #d2f34a;
+  --color-ui-accent-ink: #14180a;
 
-  --color-hud-ink: #d6e6f5;
-  --color-hud-dim: #7a97b8;
+  --color-ui-ok: #56d98a;
+  --color-ui-warn: #f0b44a;
+  --color-ui-alert: #f2705f;
+
+  /* Three text weights: primary, secondary, and the faint one that meta lines
+   * and labels use. All three clear 4.5:1 on --color-ui-bg. */
+  --color-ui-ink: #f0f2f4;
+  --color-ui-dim: #a6adb6;
+  --color-ui-faint: #868e97;
 
   /* Kept as aliases so `bg-background` / `text-foreground` still resolve. */
-  --color-background: var(--color-hud-bg);
-  --color-foreground: var(--color-hud-ink);
+  --color-background: var(--color-ui-bg);
+  --color-foreground: var(--color-ui-ink);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -36,71 +47,31 @@
 
 @layer base {
   :root {
-    /* Drives the drifting grid in the body background and the canvas backdrop. */
-    --hud-grid-size: 46px;
-    /* Pointer-glow origin. Overwritten per panel by usePointerGlow; these
-     * defaults keep the glow centred before the pointer has ever moved. */
-    --glow-x: 50%;
-    --glow-y: 0%;
-
     /* Dark form controls, scrollbars and selection without styling each one. */
     color-scheme: dark;
-    accent-color: var(--color-hud-cyan);
+    accent-color: var(--color-ui-accent);
   }
 
   body {
-    background-color: var(--color-hud-bg);
-    color: var(--color-hud-ink);
+    background-color: var(--color-ui-bg);
+    color: var(--color-ui-ink);
     font-family: var(--font-sans), system-ui, sans-serif;
-
-    /* Two crossed hairline grids, drifting one cell per cycle so the loop is
-     * seamless. This sits under the canvas backdrop and carries the look on
-     * its own if the canvas never mounts. */
-    background-image:
-      repeating-linear-gradient(
-        to bottom,
-        color-mix(in srgb, var(--color-hud-cyan) 5%, transparent) 0 1px,
-        transparent 1px var(--hud-grid-size)
-      ),
-      repeating-linear-gradient(
-        to right,
-        color-mix(in srgb, var(--color-hud-cyan) 5%, transparent) 0 1px,
-        transparent 1px var(--hud-grid-size)
-      );
-    animation: hud-grid-drift 12s linear infinite;
-  }
-
-  /* Vignette + scanlines, painted over the page but under nothing clickable. */
-  body::after {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: 50;
-    pointer-events: none;
-    background-image:
-      repeating-linear-gradient(
-        to bottom,
-        color-mix(in srgb, #000 22%, transparent) 0 1px,
-        transparent 1px 3px
-      ),
-      radial-gradient(120% 90% at 50% 0%, transparent 40%, color-mix(in srgb, var(--color-hud-bg) 85%, transparent) 100%);
-    opacity: 0.5;
   }
 
   ::selection {
-    background: color-mix(in srgb, var(--color-hud-cyan) 35%, transparent);
+    background: color-mix(in srgb, var(--color-ui-accent) 30%, transparent);
     color: #fff;
   }
 
-  /* One focus ring for the whole app — neon, and never removed. */
+  /* One focus ring for the whole app, and never removed. */
   :focus-visible {
-    outline: 2px solid var(--color-hud-cyan);
+    outline: 2px solid var(--color-ui-accent);
     outline-offset: 2px;
   }
 
   h1,
   h2,
   h3 {
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
   }
 }

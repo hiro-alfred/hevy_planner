@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 // profile-fields.tsx — exporting these from either one would make the pair
 // circular.
 
-export const LABEL_CLASSES = "hud-mono text-[0.625rem] tracking-[0.18em] text-hud-cyan uppercase";
+export const LABEL_CLASSES = "ui-label";
 
 export function Field({
   label,
@@ -24,7 +24,7 @@ export function Field({
         {label}
       </label>
       {children}
-      {hint && <p className="text-xs text-hud-dim">{hint}</p>}
+      {hint && <p className="text-xs text-ui-faint">{hint}</p>}
     </div>
   );
 }
@@ -46,11 +46,11 @@ export function Section({
   children: ReactNode;
 }) {
   return (
-    <fieldset className="flex flex-col gap-4 border-t border-hud-line-soft pt-5">
+    <fieldset className="flex flex-col gap-4 border-t border-ui-line pt-5">
       <legend className="sr-only">{title}</legend>
       <div className="flex flex-col gap-1">
         <span className={LABEL_CLASSES}>{title}</span>
-        {note && <p className="text-xs text-hud-dim">{note}</p>}
+        {note && <p className="text-xs text-ui-faint">{note}</p>}
       </div>
       {children}
     </fieldset>

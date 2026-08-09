@@ -44,13 +44,13 @@ export function PlanForm() {
           name="goal"
           required
           defaultValue="Build muscle and get stronger"
-          className="hud-field"
+          className="ui-field"
         />
       </Field>
 
       <div className="grid gap-6 sm:grid-cols-2">
         <Field label="Sessions per week" htmlFor="sessionsPerWeek">
-          <select id="sessionsPerWeek" name="sessionsPerWeek" defaultValue={4} className="hud-field">
+          <select id="sessionsPerWeek" name="sessionsPerWeek" defaultValue={4} className="ui-field">
             {SESSIONS.map((n) => (
               <option key={n} value={n}>
                 {n} days
@@ -60,7 +60,7 @@ export function PlanForm() {
         </Field>
 
         <Field label="Session length" htmlFor="sessionMinutes">
-          <select id="sessionMinutes" name="sessionMinutes" defaultValue={60} className="hud-field">
+          <select id="sessionMinutes" name="sessionMinutes" defaultValue={60} className="ui-field">
             {MINUTES.map((n) => (
               <option key={n} value={n}>
                 {n} minutes
@@ -70,7 +70,7 @@ export function PlanForm() {
         </Field>
 
         <Field label="Split" htmlFor="split">
-          <select id="split" name="split" defaultValue="auto" className="hud-field">
+          <select id="split" name="split" defaultValue="auto" className="ui-field">
             {SPLITS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -80,7 +80,7 @@ export function PlanForm() {
         </Field>
 
         <Field label="Experience" htmlFor="experience">
-          <select id="experience" name="experience" defaultValue="intermediate" className="hud-field">
+          <select id="experience" name="experience" defaultValue="intermediate" className="ui-field">
             {EXPERIENCE.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -93,7 +93,7 @@ export function PlanForm() {
       <Section title="Equipment you can use">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {EQUIPMENT_CATEGORIES.map((category) => (
-            <label key={category} className="hud-check">
+            <label key={category} className="ui-check">
               <input
                 type="checkbox"
                 name="equipment"
@@ -113,16 +113,16 @@ export function PlanForm() {
       <WorkingWeightsFields />
       <WorkAroundFields />
 
-      <div className="flex flex-col gap-3 border-t border-hud-line-soft pt-5">
+      <div className="flex flex-col gap-3 border-t border-ui-line pt-5">
         <div className="flex flex-wrap items-center gap-3">
           <button type="submit" disabled={isPending} className={buttonClasses("primary")}>
             {isPending ? "Building your plan…" : "Generate plan"}
           </button>
-          <span className="hud-sub text-xs">
+          <span className="ui-sub text-xs">
             Nothing is sent to Hevy until you review the plan and press sync.
           </span>
         </div>
-        <p className="text-xs text-hud-dim">
+        <p className="text-xs text-ui-faint">
           Plans are generated suggestions, not medical advice — train around pain, and get
           persistent pain looked at.
         </p>

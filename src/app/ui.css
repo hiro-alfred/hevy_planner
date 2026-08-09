@@ -1,0 +1,255 @@
+/* Graphite component classes: page shell, type scale, cards, rows, nav, stats.
+ * Buttons, fields, chips and notices are in ui-controls.css — split only to
+ * stay under the 300-line-per-file rule in CLAUDE.md.
+ *
+ * These live in CSS rather than as Tailwind class soup in the JSX because the
+ * same handful of surfaces recur on every page, and because the project bans
+ * inline styles — so there is nowhere else for them to go.
+ */
+
+@layer components {
+  /* ---- layout ---------------------------------------------------------- */
+
+  .ui-shell {
+    margin-inline: auto;
+    display: flex;
+    width: 100%;
+    max-width: 64rem;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 2.75rem 2rem 4rem;
+  }
+
+  /* ---- type ------------------------------------------------------------ */
+
+  /* Small caps label above a heading. Faint rather than accent-coloured: it is
+   * orientation, not emphasis. */
+  .ui-eyebrow {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-ui-faint);
+  }
+
+  .ui-h1 {
+    font-size: clamp(1.875rem, 1.3rem + 2vw, 2.5rem);
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+  }
+
+  .ui-sub {
+    max-width: 52ch;
+    font-size: 0.9375rem;
+    color: var(--color-ui-dim);
+  }
+
+  .ui-mono {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Section heading over a list or grid. */
+  .ui-sec {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  /* ---- hero ------------------------------------------------------------ */
+
+  .ui-hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+    border-bottom: 1px solid var(--color-ui-line);
+    padding-bottom: 1.75rem;
+  }
+
+  /* ---- metrics --------------------------------------------------------- */
+
+  /* Three readouts divided by hairlines rather than boxed in cards: the numbers
+   * are the content, and a border around each one just adds noise. */
+  .ui-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-bottom: 1px solid var(--color-ui-line);
+  }
+
+  .ui-stat {
+    padding: 1.5rem 0;
+  }
+
+  .ui-stat + .ui-stat {
+    border-left: 1px solid var(--color-ui-line);
+    padding-left: 1.75rem;
+  }
+
+  .ui-stat__value {
+    display: block;
+    font-size: 2.25rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+
+  .ui-stat__label {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--color-ui-faint);
+  }
+
+  /* ---- cards ----------------------------------------------------------- */
+
+  .ui-card {
+    overflow: hidden;
+    border: 1px solid var(--color-ui-line);
+    border-radius: 0.75rem;
+    background: var(--color-ui-surface);
+  }
+
+  .ui-card__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid var(--color-ui-line);
+    padding: 1.0625rem 1.25rem 0.875rem;
+  }
+
+  .ui-card__title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  /* The one place the accent appears inside a card: the day number, which is
+   * how you find your place when scanning a six-day plan. */
+  .ui-card__title b {
+    margin-right: 0.5rem;
+    font-weight: 600;
+    color: var(--color-ui-accent);
+  }
+
+  .ui-card__meta {
+    flex-shrink: 0;
+    font-size: 0.78125rem;
+    color: var(--color-ui-faint);
+  }
+
+  .ui-card__body {
+    padding: 1.25rem;
+  }
+
+  /* ---- list of cards --------------------------------------------------- */
+
+  .ui-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .ui-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1.125rem;
+    border: 1px solid var(--color-ui-line);
+    border-radius: 0.75rem;
+    background: var(--color-ui-surface);
+    padding: 1.0625rem 1.25rem;
+    transition:
+      background-color 0.18s ease,
+      border-color 0.18s ease;
+  }
+
+  .ui-item:hover {
+    border-color: #343940;
+    background: var(--color-ui-surface-2);
+  }
+
+  .ui-item__title {
+    font-size: 1rem;
+    font-weight: 550;
+    letter-spacing: -0.01em;
+  }
+
+  .ui-item__meta {
+    margin-top: 0.25rem;
+    font-size: 0.8125rem;
+    color: var(--color-ui-faint);
+  }
+
+  .ui-item__arrow {
+    font-size: 1.0625rem;
+    color: #4b5158;
+  }
+
+  /* ---- rows inside a card ---------------------------------------------- */
+
+  .ui-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.25rem 1rem;
+    padding: 0.6875rem 1.25rem;
+  }
+
+  .ui-row + .ui-row {
+    border-top: 1px solid var(--color-ui-line-soft);
+  }
+
+  /* ---- nav ------------------------------------------------------------- */
+
+  .ui-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    border-bottom: 1px solid var(--color-ui-line);
+    background: color-mix(in srgb, var(--color-ui-bg) 88%, transparent);
+    backdrop-filter: blur(10px);
+  }
+
+  .ui-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    font-size: 0.9375rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+
+  .ui-brand__mark {
+    display: block;
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    background: var(--color-ui-accent);
+  }
+
+  .ui-navlink {
+    display: block;
+    border-bottom: 2px solid transparent;
+    padding-block: 1.25rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-ui-faint);
+    transition: color 0.18s ease;
+  }
+
+  .ui-navlink:hover {
+    color: var(--color-ui-ink);
+  }
+
+  .ui-navlink--active {
+    border-bottom-color: var(--color-ui-accent);
+    color: var(--color-ui-ink);
+  }
+}

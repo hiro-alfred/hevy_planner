@@ -1,4 +1,3 @@
-import { PointerGlow } from "@/components/pointer-glow";
 import { exerciseSeconds } from "@/lib/planner/prescription";
 import type { Plan, PlanExercise } from "@/lib/planner/schema";
 
@@ -35,34 +34,27 @@ export function PlanPreview({ plan }: { plan: Plan }) {
         <section
           key={`${day.title}-${index}`}
           // Stagger caps at six days, which is also the most Hevy plans have.
-          className={`hud-panel reveal${index < 6 ? ` reveal--d${index + 1}` : ""}`}
+          className={`ui-card reveal${index < 6 ? ` reveal--d${index + 1}` : ""}`}
         >
-          <PointerGlow />
-          <span className="hud-panel__scan" aria-hidden="true" />
-          <header className="hud-panel__head items-baseline">
-            <h3 className="flex flex-wrap items-baseline gap-2">
-              <span className="hud-mono text-xs tracking-[0.18em] text-hud-cyan uppercase">
-                Day {String(index + 1).padStart(2, "0")}
-              </span>
-              <span className="font-medium tracking-wide uppercase">{day.title}</span>
+          <header className="ui-card__head items-baseline">
+            <h3 className="ui-card__title">
+              <b>Day {String(index + 1).padStart(2, "0")}</b>
+              {day.title}
             </h3>
-            <span className="hud-mono shrink-0 text-xs text-hud-dim">
-              {day.exercises.length} ex · ~{dayMinutes(day.exercises)}
+            <span className="ui-card__meta">
+              {day.exercises.length} exercises · ~{dayMinutes(day.exercises)}
             </span>
           </header>
-          <ol className="divide-y divide-hud-line-soft">
+          <ol>
             {day.exercises.map((exercise, exerciseIndex) => (
-              <li
-                key={`${exercise.exerciseTemplateId}-${exerciseIndex}`}
-                className="hud-row py-2.5"
-              >
-                <span className="flex items-baseline gap-3 text-sm">
-                  <span className="hud-mono text-[0.625rem] text-hud-dim">
+              <li key={`${exercise.exerciseTemplateId}-${exerciseIndex}`} className="ui-row">
+                <span className="flex items-baseline gap-3.5 text-sm">
+                  <span className="ui-mono text-xs text-ui-faint">
                     {String(exerciseIndex + 1).padStart(2, "0")}
                   </span>
                   {exercise.name}
                 </span>
-                <span className="hud-mono text-xs text-hud-dim">
+                <span className="ui-mono text-xs text-ui-faint">
                   {describeSets(exercise)} · {exercise.restSeconds}s rest
                 </span>
               </li>

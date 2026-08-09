@@ -19,13 +19,13 @@ function formatWhen(iso: string | null): string {
   return new Date(iso).toLocaleString();
 }
 
-// Label/value pair styled as an instrument readout rather than a definition list.
+// Label/value pair. Laid out inline rather than as a stacked definition list —
+// each value is a few words, and stacking them would spread three facts over
+// six lines.
 function Readout({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2">
-      <dt className="hud-mono text-[0.625rem] tracking-[0.18em] text-hud-dim uppercase">
-        {label}
-      </dt>
+      <dt className="text-sm text-ui-faint">{label}</dt>
       <dd className="text-sm">{children}</dd>
     </div>
   );
@@ -37,17 +37,15 @@ export default async function SettingsPage() {
   const [keyStatus, catalog] = await Promise.all([getHevyKeyStatus(), getCatalogStatus()]);
 
   return (
-    <div className="hud-shell max-w-2xl">
-      <header className="reveal flex flex-col gap-2">
-        <span className="hud-eyebrow">Configuration</span>
-        <h1 className="hud-h1">Settings</h1>
-        <p className="hud-sub">
+    <div className="ui-shell">
+      <header className="reveal flex flex-col gap-2.5">
+        <h1 className="ui-h1">Settings</h1>
+        <p className="ui-sub">
           Connect your Hevy account and keep the local exercise catalog fresh.
         </p>
       </header>
 
       <Card
-        eyebrow="Link"
         title="Hevy connection"
         description="A Hevy Pro developer key from hevy.com/settings?developer."
       >
@@ -74,7 +72,7 @@ export default async function SettingsPage() {
           </dl>
 
           {keyStatus.undecryptable && (
-            <p className="hud-notice hud-notice--warn">
+            <p className="ui-notice ui-notice--warn">
               A key is stored but SETTINGS_ENCRYPTION_KEY no longer matches the one that
               encrypted it. Saving a new key overwrites it.
             </p>
@@ -82,7 +80,7 @@ export default async function SettingsPage() {
 
           <HevyKeyForm />
 
-          <div className="flex flex-wrap items-start gap-3 border-t border-hud-line-soft pt-5">
+          <div className="flex flex-wrap items-start gap-3 border-t border-ui-line pt-5">
             <ActionButton
               action={testConnectionAction}
               label="Test connection"
@@ -102,14 +100,13 @@ export default async function SettingsPage() {
       </Card>
 
       <Card
-        eyebrow="Cache"
         title="Exercise catalog"
         description="Hevy has no exercise search endpoint, so the whole library is cached locally and used to build plans."
       >
         <div className="flex flex-col gap-5">
           <dl className="flex flex-wrap gap-x-6 gap-y-2">
             <Readout label="Cached">
-              <span className="hud-mono">{catalog.count}</span> exercises
+              <span className="ui-mono">{catalog.count}</span> exercises
             </Readout>
             <Readout label="Refreshed">{formatWhen(catalog.lastRefreshedAt)}</Readout>
           </dl>
@@ -120,7 +117,7 @@ export default async function SettingsPage() {
             tone={catalog.count === 0 ? "primary" : "secondary"}
           />
           {catalog.count === 0 && (
-            <p className="hud-sub">
+            <p className="ui-sub">
               Plan generation needs this cache. Fetch it once after saving your key.
             </p>
           )}

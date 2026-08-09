@@ -47,7 +47,7 @@ function NumberField({
         max={max}
         step={step}
         placeholder={placeholder}
-        className="hud-field hud-mono"
+        className="ui-field ui-mono"
       />
     </Field>
   );
@@ -93,7 +93,7 @@ export function WorkingWeightsFields() {
       title="Your working weights"
       note="Optional — give these and the plan arrives in Hevy with suggested starting weights instead of blanks."
     >
-      <details className="hud-disclosure">
+      <details className="ui-disclosure">
         <summary>Add current lifts</summary>
         <div className="grid gap-4 pt-4 sm:grid-cols-2">
           <NumberField
@@ -125,7 +125,7 @@ export function WorkingWeightsFields() {
             placeholder="50"
           />
         </div>
-        <p className="pt-3 text-xs text-hud-dim">
+        <p className="pt-3 text-xs text-ui-faint">
           A comfortable top set of 5 — not a one-rep max. Leave blank what you don&apos;t know.
         </p>
       </details>
@@ -156,7 +156,7 @@ export function WorkAroundFields() {
           name="injuries"
           maxLength={200}
           placeholder="e.g. right shoulder impingement, lower back twinges on deadlifts"
-          className="hud-field"
+          className="ui-field"
         />
       </Field>
 
@@ -168,7 +168,7 @@ export function WorkAroundFields() {
             return (
               <label
                 key={group}
-                className={`hud-check${!checked && focus.length >= MAX_FOCUS ? " hud-check--muted" : ""}`}
+                className={`ui-check${!checked && focus.length >= MAX_FOCUS ? " ui-check--muted" : ""}`}
               >
                 <input
                   type="checkbox"
@@ -196,7 +196,7 @@ export function WorkAroundFields() {
           rows={4}
           maxLength={500}
           placeholder="Exercises you hate or can't do, other training (I run Tuesdays), schedule quirks, what's worked before."
-          className="hud-field"
+          className="ui-field"
         />
       </Field>
     </Section>

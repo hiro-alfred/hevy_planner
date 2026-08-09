@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { buttonClasses } from "@/components/button-styles";
 import { Card } from "@/components/card";
-import { PointerGlow } from "@/components/pointer-glow";
 import { StatTile } from "@/components/stat-tile";
 import { StatusChip, type ChipTone } from "@/components/status-chip";
 import { getCatalogStatus } from "@/lib/hevy/catalog";
@@ -25,17 +24,20 @@ function PlanRow({ plan, index }: { plan: PlanListItem; index: number }) {
 
   return (
     <li className={`reveal${stagger}`}>
-      <Link href={`/plans/${plan.id}`} className="hud-row">
-        <span className="flex flex-col gap-1">
-          <span className="font-medium tracking-wide uppercase">{plan.title}</span>
-          <span className="hud-mono text-xs text-hud-dim">
-            {plan.sessionsPerWeek} days/wk · {plan.goal}
+      <Link href={`/plans/${plan.id}`} className="ui-item">
+        <span className="min-w-0 flex-1">
+          <span className="ui-item__title block">{plan.title}</span>
+          <span className="ui-item__meta block">
+            {plan.sessionsPerWeek} days per week · {plan.goal}
             {plan.syncedDays > 0 && ` · ${plan.syncedDays} routines`}
           </span>
         </span>
         <StatusChip tone={status.tone} pulse={plan.syncLabel === "changes_pending"}>
           {status.label}
         </StatusChip>
+        <span className="ui-item__arrow" aria-hidden="true">
+          ›
+        </span>
       </Link>
     </li>
   );
@@ -63,12 +65,13 @@ export default async function Home() {
   const syncedRoutines = plans.reduce((total, plan) => total + plan.syncedDays, 0);
 
   return (
-    <div className="hud-shell max-w-3xl">
-      <header className="reveal flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-2">
-          <span className="hud-eyebrow">Training system</span>
-          <h1 className="hud-h1">Your plans</h1>
-          <p className="hud-sub">Build a training plan and push it to Hevy as routines.</p>
+    <div className="ui-shell">
+      <header className="reveal ui-hero">
+        <div className="flex flex-col gap-2.5">
+          <h1 className="ui-h1">Your plans</h1>
+          <p className="ui-sub">
+            Build a training plan, review every set, then push it to Hevy as routines.
+          </p>
         </div>
         {setupSteps.length === 0 && (
           <Link href="/plans/new" className={buttonClasses("primary")}>
@@ -77,10 +80,10 @@ export default async function Home() {
         )}
       </header>
 
-      <div className="reveal reveal--d1 grid grid-cols-3 gap-3">
+      <div className="reveal reveal--d1 ui-metrics">
         <StatTile value={plans.length} label="Plans" />
-        <StatTile value={catalog.count} label="Exercises" />
-        <StatTile value={syncedRoutines} label="Routines live" />
+        <StatTile value={catalog.count} label="Exercises in your library" />
+        <StatTile value={syncedRoutines} label="Routines live in Hevy" />
       </div>
 
       {setupSteps.length > 0 && (
@@ -89,10 +92,10 @@ export default async function Home() {
           title="Finish setting up"
           description="Plans are built from your Hevy exercise library, so two things are needed first."
         >
-          <ol className="mb-5 flex flex-col gap-2">
+          <ol className="mb-5 flex flex-col gap-2.5">
             {setupSteps.map((step, index) => (
               <li key={step} className="flex items-center gap-3 text-sm">
-                <span className="hud-mono text-xs text-hud-cyan">
+                <span className="ui-mono text-xs text-ui-accent">
                   {String(index + 1).padStart(2, "0")}
                 </span>
                 {step}
@@ -106,11 +109,7 @@ export default async function Home() {
       )}
 
       {plans.length === 0 ? (
-        <Card
-          eyebrow="Empty"
-          title="No plans yet"
-          description="Your generated plans will appear here."
-        >
+        <Card title="No plans yet" description="Your generated plans will appear here.">
           {setupSteps.length === 0 && (
             <Link href="/plans/new" className={buttonClasses("primary")}>
               Create your first plan
@@ -118,10 +117,11 @@ export default async function Home() {
           )}
         </Card>
       ) : (
-        <section className="hud-panel">
-          <PointerGlow />
-          <span className="hud-panel__scan" aria-hidden="true" />
-          <ul className="divide-y divide-hud-line-soft">
+        <section className="flex flex-col gap-3.5">
+          <div className="ui-sec">
+            <h2 className="ui-eyebrow">All plans</h2>
+          </div>
+          <ul className="ui-list">
             {plans.map((plan, index) => (
               <PlanRow key={plan.id} plan={plan} index={index} />
             ))}

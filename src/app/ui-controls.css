@@ -1,0 +1,246 @@
+/* Graphite controls: buttons, form fields, chips, statuses and notices.
+ *
+ * Split out of ui.css purely to stay under the 300-line-per-file rule in
+ * CLAUDE.md; the two files are one stylesheet in every other sense.
+ */
+
+@layer components {
+  /* ---- buttons --------------------------------------------------------- */
+
+  .ui-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: 1px solid transparent;
+    border-radius: 0.5625rem;
+    padding: 0.6875rem 1.25rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition:
+      background-color 0.18s ease,
+      border-color 0.18s ease,
+      color 0.18s ease;
+  }
+
+  .ui-btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  .ui-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .ui-btn--primary {
+    background: var(--color-ui-accent);
+    color: var(--color-ui-accent-ink);
+  }
+
+  .ui-btn--primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-ui-accent) 88%, #fff);
+  }
+
+  .ui-btn--secondary {
+    border-color: var(--color-ui-line);
+    background: var(--color-ui-surface);
+    color: var(--color-ui-ink);
+  }
+
+  .ui-btn--secondary:hover:not(:disabled) {
+    border-color: #3a4047;
+    background: var(--color-ui-surface-2);
+  }
+
+  .ui-btn--danger {
+    border-color: color-mix(in srgb, var(--color-ui-alert) 45%, transparent);
+    background: color-mix(in srgb, var(--color-ui-alert) 10%, transparent);
+    color: var(--color-ui-alert);
+  }
+
+  .ui-btn--danger:hover:not(:disabled) {
+    border-color: var(--color-ui-alert);
+    background: color-mix(in srgb, var(--color-ui-alert) 16%, transparent);
+  }
+
+  /* ---- fields ---------------------------------------------------------- */
+
+  .ui-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 550;
+    color: var(--color-ui-ink);
+  }
+
+  .ui-field {
+    width: 100%;
+    border: 1px solid var(--color-ui-line);
+    border-radius: 0.5625rem;
+    background: var(--color-ui-inset);
+    padding: 0.625rem 0.75rem;
+    /* textarea and select default to their own font in most browsers. */
+    font-family: inherit;
+    font-size: 0.875rem;
+    color: var(--color-ui-ink);
+    transition: border-color 0.18s ease;
+  }
+
+  textarea.ui-field {
+    resize: vertical;
+    min-height: 5.5rem;
+    line-height: 1.5;
+  }
+
+  .ui-field::placeholder {
+    color: var(--color-ui-faint);
+  }
+
+  .ui-field:hover {
+    border-color: #3a4047;
+  }
+
+  .ui-field:focus {
+    border-color: var(--color-ui-accent);
+  }
+
+  /* Checkbox styled as a chip. The input stays a real checkbox — this is a
+   * label wrapping it — so keyboard and form semantics are untouched. */
+  .ui-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid var(--color-ui-line);
+    border-radius: 0.5rem;
+    padding: 0.4375rem 0.6875rem;
+    font-size: 0.8125rem;
+    color: var(--color-ui-dim);
+    cursor: pointer;
+    transition:
+      border-color 0.18s ease,
+      background-color 0.18s ease,
+      color 0.18s ease;
+  }
+
+  .ui-check:hover {
+    border-color: #3a4047;
+    color: var(--color-ui-ink);
+  }
+
+  /* A focus option that cannot be picked because the cap is already reached.
+   * Dimmed rather than hidden, so the cap is visible rather than mysterious. */
+  .ui-check--muted {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .ui-check--muted:hover {
+    border-color: var(--color-ui-line);
+    color: var(--color-ui-dim);
+  }
+
+  .ui-check:has(input:checked) {
+    border-color: color-mix(in srgb, var(--color-ui-accent) 40%, transparent);
+    background: color-mix(in srgb, var(--color-ui-accent) 12%, transparent);
+    color: var(--color-ui-accent);
+    font-weight: 550;
+  }
+
+  /* ---- disclosure ------------------------------------------------------ */
+
+  .ui-disclosure > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: fit-content;
+    cursor: pointer;
+    border: 1px solid var(--color-ui-line);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.875rem;
+    font-size: 0.8125rem;
+    font-weight: 550;
+    color: var(--color-ui-dim);
+    list-style: none;
+    transition: color 0.18s ease, border-color 0.18s ease;
+  }
+
+  /* Safari still paints the default triangle without this. */
+  .ui-disclosure > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .ui-disclosure > summary::before {
+    content: "+";
+    color: var(--color-ui-accent);
+  }
+
+  .ui-disclosure[open] > summary::before {
+    content: "−";
+  }
+
+  .ui-disclosure > summary:hover {
+    border-color: #3a4047;
+    color: var(--color-ui-ink);
+  }
+
+  /* ---- status ---------------------------------------------------------- */
+
+  /* Dot plus label, not a bordered badge: four of these stacked down a list
+   * read as a column of colour rather than four competing outlines. */
+  .ui-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.78125rem;
+    font-weight: 500;
+    color: var(--color-ui-dim);
+    white-space: nowrap;
+  }
+
+  .ui-status__dot {
+    width: 7px;
+    height: 7px;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: currentColor;
+  }
+
+  .ui-status--ok .ui-status__dot {
+    background: var(--color-ui-ok);
+  }
+  .ui-status--live .ui-status__dot {
+    background: var(--color-ui-ok);
+  }
+  .ui-status--warn .ui-status__dot {
+    background: var(--color-ui-warn);
+  }
+  .ui-status--alert .ui-status__dot {
+    background: var(--color-ui-alert);
+  }
+  .ui-status--idle .ui-status__dot {
+    background: #4a5057;
+  }
+
+  /* ---- notices --------------------------------------------------------- */
+
+  .ui-notice {
+    border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+    border-radius: 0.625rem;
+    background: color-mix(in srgb, currentColor 8%, transparent);
+    padding: 0.6875rem 0.9375rem;
+    font-size: 0.875rem;
+  }
+
+  .ui-notice--info {
+    color: var(--color-ui-dim);
+  }
+  .ui-notice--warn {
+    color: var(--color-ui-warn);
+  }
+  .ui-notice--error {
+    color: var(--color-ui-alert);
+  }
+  .ui-notice--ok {
+    color: var(--color-ui-ok);
+  }
+}

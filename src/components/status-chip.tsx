@@ -3,9 +3,9 @@ import type { ReactNode } from "react";
 export type ChipTone = "ok" | "live" | "warn" | "idle" | "alert";
 
 /**
- * Small monospace status badge. The tone class sets `color`, and the border,
- * dot and background all inherit from it via currentColor — so a new tone is
- * one colour declaration in hud.css, not a new set of classes.
+ * Coloured dot plus a label. The tone class colours the dot only — the text
+ * stays at the normal secondary weight, so a list of four different statuses
+ * reads as one column rather than four competing colours.
  */
 export function StatusChip({
   tone,
@@ -17,8 +17,8 @@ export function StatusChip({
   children: ReactNode;
 }) {
   return (
-    <span className={`hud-chip hud-chip--${tone}`}>
-      <span className={`hud-chip__dot${pulse ? " hud-blip" : ""}`} aria-hidden="true" />
+    <span className={`ui-status ui-status--${tone}`}>
+      <span className={`ui-status__dot${pulse ? " ui-blip" : ""}`} aria-hidden="true" />
       {children}
     </span>
   );

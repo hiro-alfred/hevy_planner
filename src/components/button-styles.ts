@@ -6,9 +6,9 @@
 // it compiles fine and then fails at request time, so the styling lives here in
 // a plain module both sides can import.
 //
-// The visuals (sweep on hover, press, neon glow) are in hud.css; this maps a
-// tone to its class pair and nothing more.
+// The visuals are in ui-controls.css; this maps a tone to its class pair and
+// nothing more.
 
 export type ButtonTone = "primary" | "secondary" | "danger";
 
-export const buttonClasses = (tone: ButtonTone = "primary") => `hud-btn hud-btn--${tone}`;
+export const buttonClasses = (tone: ButtonTone = "primary") => `ui-btn ui-btn--${tone}`;

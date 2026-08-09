@@ -16,18 +16,14 @@ export function SiteHeader() {
   const pathname = usePathname();
 
   return (
-    <header className="hud-topbar">
-      <nav className="mx-auto flex w-full max-w-5xl items-center gap-6 px-6 py-3">
-        <Link href="/" className="hud-flicker flex items-baseline gap-2">
-          <span className="hud-mono text-sm font-semibold tracking-[0.2em] uppercase">
-            Hevy
-          </span>
-          <span className="hud-mono text-sm tracking-[0.2em] text-hud-cyan uppercase">
-            Planner
-          </span>
+    <header className="ui-topbar">
+      <nav className="mx-auto flex w-full max-w-5xl items-center gap-8 px-8">
+        <Link href="/" className="ui-brand">
+          <span className="ui-brand__mark" aria-hidden="true" />
+          Hevy Planner
         </Link>
 
-        <ul className="flex items-center gap-5">
+        <ul className="flex items-center gap-7">
           {NAV.map((item) => {
             // "/" would otherwise prefix-match every route.
             const isActive =
@@ -37,7 +33,7 @@ export function SiteHeader() {
                 <Link
                   href={item.href}
                   aria-current={isActive ? "page" : undefined}
-                  className={`hud-navlink${isActive ? " hud-navlink--active" : ""}`}
+                  className={`ui-navlink${isActive ? " ui-navlink--active" : ""}`}
                 >
                   {item.label}
                 </Link>
@@ -47,9 +43,7 @@ export function SiteHeader() {
         </ul>
 
         <span className="ml-auto hidden sm:inline-flex">
-          <StatusChip tone="live" pulse>
-            Online
-          </StatusChip>
+          <StatusChip tone="live">Connected</StatusChip>
         </span>
       </nav>
     </header>

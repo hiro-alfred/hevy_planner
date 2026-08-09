@@ -8,7 +8,7 @@ export function ActionMessage({ state }: { state: ActionState }) {
   const tone = state.status === "error" ? "error" : "ok";
 
   return (
-    <p className={`hud-notice hud-notice--${tone}`} role="status">
+    <p className={`ui-notice ui-notice--${tone}`} role="status">
       {state.message}
     </p>
   );

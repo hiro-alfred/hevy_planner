@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 function Notice({ tone, children }: { tone: "info" | "warn"; children: React.ReactNode }) {
-  return <div className={`hud-notice hud-notice--${tone}`}>{children}</div>;
+  return <div className={`ui-notice ui-notice--${tone}`}>{children}</div>;
 }
 
 export default async function PlanPage({ params, searchParams }: PageProps<"/plans/[id]">) {
@@ -49,13 +49,13 @@ export default async function PlanPage({ params, searchParams }: PageProps<"/pla
   ].filter(Boolean) as string[];
 
   return (
-    <div className="hud-shell max-w-3xl">
-      <header className="reveal flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-2">
-          <span className="hud-eyebrow">Plan {String(planId).padStart(3, "0")}</span>
-          <h1 className="hud-h1">{plan?.title ?? "Untitled plan"}</h1>
-          <p className="hud-mono text-xs text-hud-dim">
-            {row.request.sessionsPerWeek} sessions/wk · {row.request.sessionMinutes} min ·{" "}
+    <div className="ui-shell">
+      <header className="reveal ui-hero">
+        <div className="flex flex-col gap-2.5">
+          <span className="ui-eyebrow">Plan {String(planId).padStart(3, "0")}</span>
+          <h1 className="ui-h1">{plan?.title ?? "Untitled plan"}</h1>
+          <p className="text-sm text-ui-faint">
+            {row.request.sessionsPerWeek} sessions per week · {row.request.sessionMinutes} min ·{" "}
             {row.request.experience} · {row.request.goal}
           </p>
         </div>
@@ -107,14 +107,13 @@ export default async function PlanPage({ params, searchParams }: PageProps<"/pla
 
       {plan ? (
         <>
-          <Card eyebrow="Method" title="Progression">
+          <Card title="Progression">
             <p className="text-sm leading-relaxed">{plan.progression}</p>
           </Card>
 
           <PlanPreview plan={plan} />
 
           <Card
-            eyebrow="Transmit"
             title="Sync to Hevy"
             description={
               syncState.syncedDays === 0
@@ -162,7 +161,6 @@ export default async function PlanPage({ params, searchParams }: PageProps<"/pla
         </>
       ) : (
         <Card
-          eyebrow="Standby"
           title="Not generated yet"
           description="This plan has a request but no sessions."
         >
