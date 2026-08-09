@@ -41,6 +41,9 @@ RUN groupadd --system --gid 1001 nodejs \
 # Standalone output carries its own minimal node_modules and server.js.
 COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
+# The app keeps its favicon in src/app/ (App Router metadata), so public/ holds
+# nothing yet and exists only as a .gitkeep — but COPY fails outright on a
+# missing source, so the directory has to be there for this line to work.
 COPY --from=build --chown=nextjs:nodejs /app/public ./public
 
 # Migrations are applied on boot by src/instrumentation.ts, which reads this

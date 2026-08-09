@@ -227,6 +227,20 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   Worth keeping: the `app` service has no `env_file:`, so its environment is
   exactly what `environment:` lists — `.env` reaching compose does not mean it
   reaches the container.
+- 2026-08-09 — **The container path runs.** Docker Desktop 4.85.0 / engine
+  29.6.2 / compose v5.3.1 on WSL 2.7.11; `compose up -d --wait` brings both
+  services up healthy, the boot migration builds the whole schema on an empty
+  volume, and `/`, `/plans/new`, `/settings` answer 200. 103/103 tests also pass
+  against the pinned 11.4 image, closing the 12.3-vs-11.4 worry. The lesson is
+  the one failure: `docker compose build` died on `COPY /app/public` because
+  there is no `public/` — the favicon is App Router metadata under `src/app/` —
+  and COPY errors on a missing source rather than skipping it. Every prior
+  reading of that Dockerfile, including the [[deployment]] page describing the
+  runtime stage, listed `public` as if it existed; nothing but running the build
+  was going to catch it. Also worth keeping: the boot migration logs nothing on
+  success, so `SHOW TABLES` is the evidence it ran, and the retry path in
+  `src/lib/db/migrate.ts` is still unfired because `depends_on` never lets the
+  app meet a database that is not already up.
 - 2026-08-08 — **Revamped the UI into a neon-HUD theme** ([[ui-design-system]]):
   new CSS layer plus six motion components, every page restyled, dark-only by
   decision rather than by omission. Green checks proved nothing about the look —

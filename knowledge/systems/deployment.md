@@ -44,6 +44,12 @@ database.
 The image no longer declares a `VOLUME`, and there is no `DATABASE_PATH`. State
 lives in the `db` service's `db-data` volume.
 
+`public/` exists only as a `.gitkeep`. The app keeps its favicon in `src/app/`
+as App Router metadata, so the directory holds nothing — but the first real
+build failed on `COPY /app/public`, because COPY errors out on a missing source
+rather than skipping it. The directory has to exist for the runtime stage to
+assemble at all.
+
 ## Three runtime settings that bite
 
 > [!warning] `HOSTNAME=0.0.0.0`
@@ -103,12 +109,28 @@ only delay a failure the operator needs to see. The Dockerfile's healthcheck
 The app itself is verified end to end against a real MariaDB — all routes, the
 boot migration, and 63/63 tests ([[mariadb-migration]]).
 
-> [!warning] The container path is still unobserved
-> Neither the Docker build nor `compose up` has been run. So the compose wiring,
-> the `depends_on` healthcheck, and the boot-migration retry are reasoned-about,
-> not tested. Local dev uses a natively-installed MariaDB on 3306 instead, and
-> runs 12.3 (rolling) against the 11.4 (LTS) pinned in the compose files. Treat
-> the first `compose up` as unproven ground.
+**The container path now runs.** 2026-08-09, Docker Desktop 4.85.0 / engine
+29.6.2 / compose v5.3.1 on the Windows dev box:
+
+- `docker compose build` succeeds — after the `public/` fix above, which is the
+  one thing reasoning had missed.
+- `docker compose up -d --wait` reports both services healthy. The `db`
+  healthcheck goes healthy first and the app starts after it, so the
+  `depends_on: service_healthy` ordering does what it claims.
+- The boot migration builds the whole schema on an empty `db-data` volume:
+  `__drizzle_migrations`, `exercise_templates`, `plans`, `settings`,
+  `sync_links`. It emits no log line, so the tables are the evidence, not the
+  output.
+- `/`, `/plans/new` and `/settings` all answer 200 through the published port,
+  which also confirms `HOSTNAME=0.0.0.0` end to end.
+- The suite runs green against the pinned **11.4** image (103/103 via the test
+  stack on 3307), so the 12.3-local-vs-11.4-pinned gap is closed rather than
+  merely assumed harmless.
+
+What is still unobserved: the boot-migration **retry** path. Nothing has yet
+started the app against a database that was not already accepting connections,
+so the 60s connection-phase retry in `src/lib/db/migrate.ts` has never fired.
+The orchestrated `compose up` is exactly the case `depends_on` already covers.
 
 ## Getting a daemon on the dev machine
 
@@ -116,16 +138,21 @@ The Windows box had no Docker because it had no hypervisor: VT-x and SLAT are
 available in firmware, but `Microsoft-Windows-Subsystem-Linux` and
 `VirtualMachinePlatform` were both disabled and `wsl.exe` was the inbox stub
 (it prints usage for `--status` and ignores `WSL_UTF8` — neither means WSL is
-broken, only that it is not installed). Both features are now **Enabled** via
-`dism /online /enable-feature /all /norestart`, which returned 3010: success,
-reboot required. Until that reboot the hypervisor does not start, so
-`wsl --update`, `wsl --install -d Ubuntu` and the Docker Desktop install all
-have to wait. Windows 10 Pro 22H2 build 19045 is above Docker Desktop's floor.
+broken, only that it is not installed). Enabling both with
+`dism /online /enable-feature /all /norestart` returns 3010 — success, reboot
+required — and nothing works until that reboot, because the hypervisor does not
+start before it. `HypervisorPresent` on `Win32_ComputerSystem` is the check that
+says whether it did. After the reboot: `wsl --update` (kernel 6.18, WSL 2.7.11),
+`wsl --set-default-version 2`, then `winget install -e --id Docker.DockerDesktop`
+and one launch of Docker Desktop. No user distro is needed — Docker Desktop
+brings its own `docker-desktop` WSL image, and the engine came up without the
+subscription dialog blocking it. Windows 10 Pro 22H2 build 19045 is above
+Docker Desktop's floor.
 
-Prove the daemon on the throwaway stack first — `docker compose -f
-docker-compose.test.yml up -d` ([[testing-setup]]) publishes 3307 and holds
-nothing real, so a mistake there costs nothing. Only then `compose up --build`
-against the volume that carries the encrypted Hevy key ([[key-handling]]).
+Prove the daemon on the throwaway stack first — `npm run test:db:up`
+([[testing-setup]]) publishes 3307 and holds nothing real, so a mistake there
+costs nothing. Only then `compose up` against the volume that carries the
+encrypted Hevy key ([[key-handling]]).
 
 ## Still open
 
