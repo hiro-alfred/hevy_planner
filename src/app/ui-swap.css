@@ -96,6 +96,16 @@
     font-size: 0.875rem;
   }
 
+  /* What a weak option would cost the day. Muted rather than alarming: these
+   * are still offered, and on a short pool one of them may be the best there
+   * is — the line is there to be read, not to shout. */
+  .ui-opt__caveat {
+    display: block;
+    margin-top: 0.1875rem;
+    font-size: 0.6875rem;
+    color: var(--color-ui-faint);
+  }
+
   .ui-opt__tags {
     display: flex;
     flex-wrap: wrap;

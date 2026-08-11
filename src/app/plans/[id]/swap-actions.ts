@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { type ActionState, errorState, successState } from "@/lib/action-state";
-import { getCandidates, getTemplateById } from "@/lib/hevy/catalog";
+import { getCandidates, getTemplateById, getTemplatesByIds } from "@/lib/hevy/catalog";
 import { withPlanLock } from "@/lib/hevy/plan-lock";
 import { getPlan, savePlanEdit, saveRequest } from "@/lib/plans";
 import {
@@ -13,6 +13,7 @@ import {
   rankAlternatives,
   toAlternative,
 } from "@/lib/planner/alternatives";
+import { buildDayContext } from "@/lib/planner/muscle-balance";
 import { planRequestSchema } from "@/lib/planner/schema";
 
 // Server actions for the exercise swap (knowledge/decisions/exercise-alternatives.md).
@@ -65,19 +66,22 @@ export async function loadAlternativesAction(
   // Excluded from the pool: everything already on this day (a day must not
   // contain the same movement twice), the outgoing exercise itself, and
   // everything previously rejected on this plan.
-  const excludeIds = [
-    ...new Set([
-      ...dayTemplateIds(row.plan, dayIndex),
-      ...(row.request.excludedExercises ?? []),
-    ]),
-  ];
+  const dayIds = dayTemplateIds(row.plan, dayIndex);
+  const excludeIds = [...new Set([...dayIds, ...(row.request.excludedExercises ?? [])])];
 
-  const pool = await getCandidates({
-    equipment: row.request.equipment,
-    muscleGroups: [outgoing.primaryMuscleGroup],
-    excludeIds,
-    limit: POOL_SIZE,
-  });
+  // Every template on the day, in ONE query — ranking is against the day's
+  // muscle coverage, not against the outgoing exercise alone, so the picker
+  // needs the neighbouring exercises' muscle groups. A row per exercise here
+  // would be the N+1 the project rules ban.
+  const [pool, dayRows] = await Promise.all([
+    getCandidates({
+      equipment: row.request.equipment,
+      muscleGroups: [outgoing.primaryMuscleGroup],
+      excludeIds,
+      limit: POOL_SIZE,
+    }),
+    getTemplatesByIds(dayIds),
+  ]);
 
   // Exhaustion is real — bodyweight-only calves can be a pool of two. Say so
   // rather than looping back to the start of the list, which reads as broken.
@@ -86,7 +90,9 @@ export async function loadAlternativesAction(
       ? "No other exercise in the catalog matches this muscle group with your equipment. Widen the equipment selection, or clear some rejected exercises below."
       : null;
 
-  return { options: rankAlternatives(pool, outgoing).map(toAlternative), message };
+  const context = buildDayContext(row.plan.days[dayIndex]!, exerciseIndex, dayRows);
+
+  return { options: rankAlternatives(pool, outgoing, context).map(toAlternative), message };
 }
 
 /**

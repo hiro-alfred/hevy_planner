@@ -118,7 +118,15 @@ export function ExerciseSwap({
             <ul className="ui-swap__list">
               {visible.map((option) => (
                 <li key={option.id} className="ui-opt">
-                  <span className="ui-opt__title">{option.title}</span>
+                  <span className="ui-opt__title">
+                    {option.title}
+                    {/* Options are ranked against the whole day, so the ones
+                        that would strip a muscle of its work or pile onto a
+                        muscle the day already covers sit at the bottom. They
+                        are still offered — a short pool can hold nothing
+                        better — so each says plainly what it would cost. */}
+                    {option.caveat && <span className="ui-opt__caveat">{option.caveat}</span>}
+                  </span>
                   <span className="ui-opt__tags">
                     <span className="ui-tag">{muscleLabel(option.muscleGroup)}</span>
                     <span className="ui-tag">{equipmentLabel(option.equipment)}</span>

@@ -9,6 +9,8 @@ sources:
   [
     src/lib/planner/alternatives.ts,
     src/lib/planner/alternatives.test.ts,
+    src/lib/planner/muscle-balance.ts,
+    src/lib/planner/muscle-balance.test.ts,
     src/lib/hevy/catalog.ts,
     src/lib/planner/schema.ts,
     src/lib/planner/validate.ts,
@@ -28,7 +30,7 @@ sources:
 > user dislikes should be replaceable from the preview, repeatedly, without ever
 > repeating itself. What actually shipped, and the two places it deviates, are
 > in [[#What shipped]] at the foot of the page. **Not yet exercised by a human
-> against a real plan** — 133 unit tests cover the pure half and the pool query;
+> against a real plan** — unit tests cover the pure half and the pool query;
 > nobody has clicked it.
 
 This fills in the half of "Edit scope: minimal-plus — swap-exercise (catalog
@@ -50,9 +52,10 @@ local rows there is nothing for a model to know that the columns do not say.
 
 **One fetch per picker-open, paged client-side.** The action returns the whole
 ranked pool (~30 rows); "more alternatives" advances an offset. So the first
-click costs one local query and every later click costs nothing. Ranking: same
-primary muscle group first, then secondary matches; within each, same equipment
-category as the outgoing exercise, then the existing `EQUIPMENT_RANK`, then title.
+click costs one local query and every later click costs nothing. Ranking is
+against the DAY rather than against the outgoing exercise alone: see
+[[#Ranking against the day]], which replaced the original
+primary-then-secondary ordering on 2026-08-11.
 
 **A swap is a permanent rejection, per plan** (owner's decision, 2026-08-08).
 The swapped-out template id is appended to a new optional
@@ -75,6 +78,63 @@ sessions.
 
 Exclusions are **per plan, not global**. Promoting them to a global preference
 later is easy; the reverse is not.
+
+## Ranking against the day
+
+Added 2026-08-11, on the owner's brief: a recommendation must not be
+**redundant**. Two failures, both live in the first build, both fixed here.
+
+1. **It must not remove a portion the day was meant to get.** The pool query
+   matches primary OR secondary muscle, so swapping a bench press could return a
+   close-grip press that merely lists chest as a secondary — and a day whose only
+   chest work was that bench keeps half of it.
+2. **It must not work a muscle unnecessarily.** Nothing looked at the
+   neighbouring exercises, so a chest fly could be replaced by a triceps-heavy
+   press on a day already running two triceps movements.
+
+`muscle-balance.ts` answers both by measuring the DAY. Each exercise contributes
+its working sets (warm-ups are not volume) to its primary muscle at weight 1 and
+to each secondary at **0.5** — coarse, but the catalog carries nothing finer.
+That yields `base` (the day without the outgoing exercise), `gap` (what the
+outgoing exercise contributes, i.e. what the swap owes back) and `before`.
+
+Each candidate gets two numbers, one per failure:
+
+- **coverage** — the share of `gap` it puts back. A chest press for a chest
+  press restores all of it; a triceps movement listing chest as a secondary
+  restores half of the chest. This is rule 1 as a number rather than a filter.
+- **waste** — of the stimulus it adds BEYOND `gap`, how much lands on muscles
+  the rest of the day already covers, discounted by a `need` hyperbola (1.0 at
+  no coverage, 0.5 at four weighted sets, never zero). This is rule 2. It is why
+  on a triceps-saturated day a plain fly beats a close-grip press even though
+  both restore the chest work in full.
+
+Sort keys: **deficit**, then **surplus**, then `coverage − waste` bucketed to
+0.05, then the outgoing exercise's own equipment, then `EQUIPMENT_RANK`, then
+title. The two flags outrank the score because they are not preferences — they
+are the failures. Deficit fires when a muscle keeps under 75% of coverage it had
+(ignoring incidental coverage under one weighted set); surplus fires when the
+swap ADDS load to a muscle already past six weighted sets, so a day that was
+already triceps-heavy before the swap is not held against an option that changes
+nothing about it.
+
+**Weak fits are ranked last and labelled, never hidden** (owner's decision). A
+restrictive equipment list can leave nothing but imperfect options, and an empty
+picker helps nobody — so each such row carries one plain sentence: "Leaves
+shoulders untrained on this day", "Leaves this day short on chest", "This day
+already has plenty of triceps".
+
+The day's intended muscles are read from **the exercises the day currently
+holds**, not from the [[plan-pipeline]] split template. `planDaySchema` stores
+only a title and exercises, so the split would have to be re-derived from the
+request and matched by day index — which goes stale the moment a day is edited,
+and LLM-generated days need not follow the template's order anyway.
+
+The old primary-versus-secondary sort key is gone because these keys subsume it,
+and they demote for the real reason instead of by proxy. Cost is one extra batch
+query per picker-open (`getTemplatesByIds` over the day's ids), issued in
+parallel with the pool query — not per exercise, which would be the N+1 the
+project rules ban.
 
 ## The substitution rule
 
@@ -171,6 +231,12 @@ Third-party styling note: the picker needed a third stylesheet
 (`src/app/ui-swap.css`), because `ui-controls.css` is at the 300-line file cap
 ([[ui-design-system]]).
 
+The day-balance ranking landed later the same day, in `muscle-balance.ts` (pure,
+like the rest of the swap's arithmetic) plus a third field on `Alternative`:
+`caveat`, the one sentence a weak option carries into the picker. Twelve tests
+cover it, including both redundancy cases stated as their own assertions. Still
+unclicked by a human, like everything else here.
+
 ## Rejected
 
 LLM-per-swap (latency, cost, failure, hallucinated ids); hybrid catalog-then-LLM
@@ -180,3 +246,10 @@ in the plan JSON (destroyed by regenerate); a rejections table (nothing
 relational queries it, and it splits the request's reproducibility contract
 across two homes); excluding browsed-past options; a modal; auto-adjusted rest;
 auto-sync; shipping the filtered catalog to the client.
+
+On the day-balance ranking specifically: **hiding** weak fits rather than
+sinking and labelling them (a short pool can hold nothing better, and an empty
+picker helps nobody); reading the day's intended muscles from the split template
+by day index (stale after any edit); and a plain deviation metric — scoring
+candidates by how little they move the day's profile — which cancels the rest of
+the day out of the arithmetic entirely and so cannot express "unnecessarily".
