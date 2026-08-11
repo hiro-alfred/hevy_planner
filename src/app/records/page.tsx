@@ -2,12 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ActionButton } from "@/components/action-button";
 import { Card } from "@/components/card";
+import { ChipLinks, SearchField } from "@/components/filter-bar";
 import { StatTile } from "@/components/stat-tile";
 import { getHistoryStatus } from "@/lib/hevy/workout-sync";
-import { formatKg, relativeDay } from "@/lib/records/format";
-import { listExerciseRecords, type ExerciseRecordSummary } from "@/lib/records/metrics";
+import { relativeDay } from "@/lib/records/format";
+import { listExerciseRecords } from "@/lib/records/metrics";
+import { parseSort, RECORD_SORTS } from "@/lib/records/record-sort";
 import { getHevyKeyStatus } from "@/lib/settings";
 import { syncHistoryAction } from "./actions";
+import { RecordList } from "./record-list";
 
 export const metadata: Metadata = {
   title: "Records — Hevy Planner",
@@ -24,52 +27,37 @@ export const dynamic = "force-dynamic";
 // Refreshing is therefore an explicit button, and the page renders fine when
 // Hevy is unreachable.
 
-function RecordRow({ record }: { record: ExerciseRecordSummary }) {
-  // A bodyweight movement has no weight records at all; showing "— kg" for it
-  // would read as missing data rather than as the nature of the exercise.
-  const detail =
-    record.heaviestKg === null
-      ? `best ${record.bestReps} reps`
-      : `best ${formatKg(record.heaviestKg)} kg · est. 1RM ${formatKg(record.bestE1rmKg)} kg`;
-
-  return (
-    <li className="ui-row">
-      <span className="flex min-w-0 flex-col gap-1">
-        <Link href={`/records/${encodeURIComponent(record.templateId)}`} className="text-sm underline">
-          {record.title}
-        </Link>
-        <span className="ui-item__meta">
-          {detail} · {record.sessionCount} session{record.sessionCount === 1 ? "" : "s"} ·{" "}
-          {relativeDay(record.lastPerformedAt)}
-        </span>
-      </span>
-    </li>
-  );
-}
-
-export default async function RecordsPage({ searchParams }: PageProps<"/records">) {
-  const query = await searchParams;
-  const search = typeof query.q === "string" ? query.q : "";
-
-  const [status, keyStatus, records] = await Promise.all([
-    getHistoryStatus(),
-    getHevyKeyStatus(),
-    listExerciseRecords(search),
-  ]);
-
+function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="ui-shell">
       <header className="reveal ui-hero">
         <div className="flex flex-col gap-2.5">
           <h1 className="ui-h1">Records</h1>
           <p className="ui-sub">
-            The best you have done on every exercise you have logged, from a local copy of your
-            Hevy history. Read-only — nothing on this page changes anything in Hevy.
+            The best you have done on every exercise you have logged, from a local copy of your Hevy
+            history. Read-only — nothing here changes anything in Hevy.
           </p>
         </div>
       </header>
+      {children}
+    </div>
+  );
+}
 
-      {!status.everSynced ? (
+export default async function RecordsPage({ searchParams }: PageProps<"/records">) {
+  const query = await searchParams;
+  const search = typeof query.q === "string" ? query.q : "";
+  const sort = parseSort(query.sort);
+
+  const [status, keyStatus, records] = await Promise.all([
+    getHistoryStatus(),
+    getHevyKeyStatus(),
+    listExerciseRecords(search, sort),
+  ]);
+
+  if (!status.everSynced) {
+    return (
+      <Shell>
         <Card
           title={keyStatus.configured ? "No history yet" : "No API key"}
           description={
@@ -91,81 +79,99 @@ export default async function RecordsPage({ searchParams }: PageProps<"/records"
             </Link>
           )}
         </Card>
+      </Shell>
+    );
+  }
+
+  const hrefFor = (value: string) => {
+    const next = new URLSearchParams();
+    if (search) next.set("q", search);
+    if (value !== "recent") next.set("sort", value);
+    const suffix = next.toString();
+    return suffix ? `/records?${suffix}` : "/records";
+  };
+
+  return (
+    <Shell>
+      <div className="reveal reveal--d1 ui-metrics">
+        <StatTile value={status.workouts} label="Workouts cached" />
+        <StatTile value={status.sets} label="Sets logged" />
+        <StatTile value={records.length} label="Exercises tracked" />
+      </div>
+
+      {/* Sync is a maintenance action, so it sits below the numbers it refreshes
+          and above the list it changes — not in the hero, where it would
+          compete with the records themselves. */}
+      <Card
+        title="Sync history"
+        description={
+          status.lastSyncedAt
+            ? `Last updated ${relativeDay(status.lastSyncedAt)}. Only workouts changed since then are fetched.`
+            : "Fetches everything logged since the last sync."
+        }
+      >
+        <div className="flex flex-wrap items-start gap-3">
+          <ActionButton
+            action={syncHistoryAction.bind(null, false)}
+            label="Sync new workouts"
+            pendingLabel="Syncing…"
+            tone="primary"
+          />
+          {/* Hevy's delta feed is keyed on `updated_at`, and nothing guarantees
+              an edit moves it forward. A full re-walk is the only repair if a
+              change is ever missed. */}
+          <ActionButton
+            action={syncHistoryAction.bind(null, true)}
+            label="Re-sync everything"
+            pendingLabel="Re-syncing…"
+            confirm="Re-read your entire Hevy history? This replaces the local copy and can take a few minutes."
+          />
+        </div>
+      </Card>
+
+      <div className="ui-toolbar">
+        <ChipLinks
+          label="Sort exercises"
+          active={sort}
+          hrefFor={hrefFor}
+          options={RECORD_SORTS.map((option) => ({ value: option.id, label: option.label }))}
+        />
+        <SearchField
+          value={search}
+          label="Find an exercise"
+          placeholder="bench, squat, curl…"
+          hidden={sort === "recent" ? {} : { sort }}
+        />
+      </div>
+
+      {records.length === 0 ? (
+        <Card
+          title="Nothing to show"
+          description={
+            search
+              ? `No logged exercise matches "${search}".`
+              : "No working sets in the cache yet. Warm-up sets are never counted as records."
+          }
+        >
+          {search && (
+            <Link href="/records" className="underline">
+              Clear the search
+            </Link>
+          )}
+        </Card>
       ) : (
-        <>
-          <div className="reveal reveal--d1 ui-metrics">
-            <StatTile value={status.workouts} label="Workouts cached" />
-            <StatTile value={status.sets} label="Sets logged" />
-            <StatTile value={records.length} label="Exercises tracked" />
+        <section className="flex flex-col gap-3.5">
+          <div className="ui-sec">
+            <h2 className="ui-eyebrow">
+              {search ? `${records.length} matching "${search}"` : `${records.length} exercises`}
+            </h2>
+            <span className="ui-card__meta">
+              {RECORD_SORTS.find((option) => option.id === sort)?.label} first
+            </span>
           </div>
-
-          <Card
-            title="Sync history"
-            description={
-              status.lastSyncedAt
-                ? `Last updated ${relativeDay(status.lastSyncedAt)}. Only workouts changed since then are fetched.`
-                : "Fetches everything logged since the last sync."
-            }
-          >
-            <div className="flex flex-wrap items-start gap-3">
-              <ActionButton
-                action={syncHistoryAction.bind(null, false)}
-                label="Sync new workouts"
-                pendingLabel="Syncing…"
-                tone="primary"
-              />
-              {/* Hevy's delta feed is keyed on `updated_at`, and nothing
-                  guarantees an edit moves it forward. A full re-walk is the only
-                  repair if a change is ever missed. */}
-              <ActionButton
-                action={syncHistoryAction.bind(null, true)}
-                label="Re-sync everything"
-                pendingLabel="Re-syncing…"
-                confirm="Re-read your entire Hevy history? This replaces the local copy and can take a few minutes."
-              />
-            </div>
-          </Card>
-
-          <Card
-            title="Exercises"
-            description={
-              search
-                ? `${records.length} matching "${search}", most recently trained first.`
-                : `${records.length} exercises, most recently trained first.`
-            }
-          >
-            {/* A GET form, so a search is a plain URL the browser can bookmark
-                and the back button can undo — no client-side state involved. */}
-            <form method="get" className="mb-4 flex flex-wrap items-center gap-3">
-              <label htmlFor="q" className="ui-label">
-                Find an exercise
-              </label>
-              <input
-                id="q"
-                name="q"
-                type="search"
-                defaultValue={search}
-                placeholder="bench, squat, curl…"
-                className="ui-field max-w-xs"
-              />
-            </form>
-
-            {records.length === 0 ? (
-              <p className="ui-sub text-sm">
-                {search
-                  ? "No logged exercise matches that."
-                  : "No working sets in the cache yet. Warm-up sets are never counted as records."}
-              </p>
-            ) : (
-              <ul>
-                {records.map((record) => (
-                  <RecordRow key={record.templateId} record={record} />
-                ))}
-              </ul>
-            )}
-          </Card>
-        </>
+          <RecordList records={records} />
+        </section>
       )}
-    </div>
+    </Shell>
   );
 }

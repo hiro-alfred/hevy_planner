@@ -1,0 +1,292 @@
+/* Graphite data surfaces: toolbars, exercise blocks, set chips and the trend
+ * chart. The third slice of one stylesheet — ui.css holds the page furniture,
+ * ui-controls.css the controls — split only to stay under the 300-line rule.
+ *
+ * Everything here serves the two screens that show TRAINING data rather than
+ * app state: a routine opened up, and an exercise's records.
+ */
+
+@layer components {
+  /* ---- toolbar --------------------------------------------------------- */
+
+  /* Search plus filters, on one row above the list. Filters live outside the
+   * list they filter so the result count below them can be read as the answer. */
+  .ui-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+  }
+
+  .ui-toolbar__group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  /* The search half of the toolbar: pushed to the far end and kept on one line,
+   * so its label sits BESIDE the field instead of wrapping above it and
+   * misaligning with the filter chips it shares the row with. */
+  .ui-toolbar__group--search {
+    flex-wrap: nowrap;
+    gap: 0.625rem;
+    margin-left: auto;
+  }
+
+  /* Its label must not wrap either — "Find an exercise" broken over two lines
+   * makes the field it belongs to look mis-positioned. */
+  .ui-toolbar__group--search .ui-label {
+    white-space: nowrap;
+  }
+
+  /* A filter option. Rendered as a link, not a button: every filter here is a
+   * GET parameter, so the state is the URL and the back button undoes it. */
+  .ui-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4375rem;
+    border: 1px solid var(--color-ui-line);
+    border-radius: 9999px;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.78125rem;
+    font-weight: 500;
+    color: var(--color-ui-dim);
+    white-space: nowrap;
+    transition:
+      border-color 0.18s ease,
+      background-color 0.18s ease,
+      color 0.18s ease;
+  }
+
+  .ui-chip:hover {
+    border-color: #3a4047;
+    color: var(--color-ui-ink);
+  }
+
+  .ui-chip--on {
+    border-color: color-mix(in srgb, var(--color-ui-accent) 40%, transparent);
+    background: color-mix(in srgb, var(--color-ui-accent) 12%, transparent);
+    color: var(--color-ui-accent);
+  }
+
+  .ui-chip__count {
+    font-variant-numeric: tabular-nums;
+    opacity: 0.7;
+  }
+
+  /* ---- group heading --------------------------------------------------- */
+
+  /* Folder name over a run of routines. A hairline rather than a card header:
+   * the routines below are the cards, and boxing the box would nest two
+   * borders for one label. */
+  .ui-group {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid var(--color-ui-line-soft);
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  /* ---- exercise block -------------------------------------------------- */
+
+  /* One exercise inside an opened routine: prescription on the left, what was
+   * lifted last time underneath. A block rather than a .ui-row because it
+   * carries three lines, and a row's baseline alignment fights that. */
+  .ui-ex {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.9375rem 1.25rem;
+  }
+
+  .ui-ex + .ui-ex {
+    border-top: 1px solid var(--color-ui-line-soft);
+  }
+
+  .ui-ex__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.25rem 1rem;
+  }
+
+  .ui-ex__name {
+    display: flex;
+    align-items: baseline;
+    gap: 0.875rem;
+    font-size: 0.9375rem;
+    font-weight: 550;
+  }
+
+  .ui-ex__num {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ui-faint);
+  }
+
+  /* The prescription line — sets, reps, rest. Tabular so the numbers line up
+   * down a routine of eight exercises. */
+  .ui-ex__prescription {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.78125rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ui-dim);
+    white-space: nowrap;
+  }
+
+  .ui-ex__notes {
+    font-size: 0.8125rem;
+    color: var(--color-ui-dim);
+    border-left: 2px solid var(--color-ui-line);
+    padding-left: 0.6875rem;
+  }
+
+  /* Last time's sets, inset so it reads as evidence under the prescription
+   * rather than as more prescription. */
+  .ui-ex__last {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem 0.625rem;
+    border-radius: 0.5rem;
+    background: var(--color-ui-inset);
+    padding: 0.5rem 0.6875rem;
+    font-size: 0.8125rem;
+  }
+
+  .ui-ex__lastLabel {
+    font-size: 0.75rem;
+    color: var(--color-ui-faint);
+    white-space: nowrap;
+  }
+
+  /* ---- set chips ------------------------------------------------------- */
+
+  /* One logged set. Individually boxed because the interesting thing about a
+   * session is where the reps DROPPED — "8, 8, 6" as one string hides that;
+   * three chips do not. */
+  .ui-set {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    border: 1px solid var(--color-ui-line);
+    border-radius: 0.375rem;
+    background: var(--color-ui-surface);
+    padding: 0.1875rem 0.4375rem;
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ui-dim);
+    white-space: nowrap;
+  }
+
+  /* The heaviest set of that session. One accent per screen already applies to
+   * actions, so this marks with weight and ink instead of colour. */
+  .ui-set--top {
+    border-color: #3a4047;
+    color: var(--color-ui-ink);
+    font-weight: 600;
+  }
+
+  .ui-sets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3125rem;
+  }
+
+  /* ---- trend chart ----------------------------------------------------- */
+
+  .ui-chart {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  /* Recessive frame: the baseline and the two bound lines, nothing more. A
+   * full grid would out-ink a line with a dozen points on it. */
+  .ui-chart__grid {
+    stroke: var(--color-ui-line);
+    stroke-width: 1;
+  }
+
+  .ui-chart__area {
+    fill: color-mix(in srgb, var(--color-ui-accent) 12%, transparent);
+  }
+
+  .ui-chart__line {
+    fill: none;
+    stroke: var(--color-ui-accent);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .ui-chart__dot {
+    fill: var(--color-ui-bg);
+    stroke: var(--color-ui-accent);
+    stroke-width: 2;
+  }
+
+  /* The newest session, filled — the value a reader looks for first. */
+  .ui-chart__dot--last {
+    fill: var(--color-ui-accent);
+  }
+
+  .ui-chart__label {
+    fill: var(--color-ui-faint);
+    font-size: 11px;
+    font-family: var(--font-mono), ui-monospace, monospace;
+  }
+
+  .ui-chart__label--value {
+    fill: var(--color-ui-ink);
+    font-weight: 600;
+  }
+
+  /* ---- key/value grid -------------------------------------------------- */
+
+  /* Records and rep maxes: label left, value right, in columns that wrap. Two
+   * columns of short pairs beat one long list a reader has to scroll — and the
+   * minimum is wide enough that it stays TWO on a desktop shell, because at
+   * three the label of one pair sits closer to its neighbour's value than to
+   * its own. */
+  .ui-kv {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+    gap: 0.125rem 2.5rem;
+  }
+
+  .ui-kv__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid var(--color-ui-line-soft);
+    padding: 0.5rem 0;
+  }
+
+  .ui-kv__label {
+    font-size: 0.8125rem;
+    color: var(--color-ui-dim);
+  }
+
+  .ui-kv__value {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .ui-kv__when {
+    display: block;
+    font-family: var(--font-sans), system-ui, sans-serif;
+    font-size: 0.75rem;
+    color: var(--color-ui-faint);
+  }
+}

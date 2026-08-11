@@ -29,14 +29,30 @@ export interface HevyRoutinePayload {
   exercises: HevyRoutineExercisePayload[];
 }
 
+/**
+ * An exercise as READ back from Hevy, which is not quite what was written.
+ *
+ * Two differences from the payload, both from the spec and both load-bearing
+ * for the routine detail page: the read side names the movement (`title`), so
+ * a routine made in the Hevy app can be displayed without a catalog lookup,
+ * and it numbers the sets. Every added field is optional — this is a read of
+ * an API that has already been caught misdeclaring a field name once
+ * (knowledge/concepts/hevy-api.md), so a missing one must degrade the row
+ * rather than break the page.
+ */
+export interface HevyRoutineExercise
+  extends Omit<HevyRoutineExercisePayload, "superset_id" | "sets"> {
+  index: number;
+  title?: string;
+  supersets_id: number | null;
+  sets: Array<HevyRoutineSetPayload & { index?: number; rpe?: number | null }>;
+}
+
 export interface HevyRoutine extends Omit<HevyRoutinePayload, "exercises"> {
   id: string;
-  exercises: Array<
-    Omit<HevyRoutineExercisePayload, "superset_id"> & {
-      index: number;
-      supersets_id: number | null;
-    }
-  >;
+  updated_at?: string;
+  created_at?: string;
+  exercises: HevyRoutineExercise[];
 }
 
 export interface HevyExerciseTemplate {

@@ -2,6 +2,8 @@ import "server-only";
 import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { workouts, workoutSets } from "@/lib/db/schema";
+import { E1RM_MAX_REPS, epley } from "./e1rm";
+import { SORT_ORDER, type RecordSort } from "./record-sort";
 
 // Personal records, computed from the local workout cache (lib/hevy/workout-sync).
 //
@@ -15,31 +17,12 @@ import { workouts, workoutSets } from "@/lib/db/schema";
 //      records rather than treated as a 1-rep max.
 
 /** Set types that count. `warmup` is the only one excluded. */
-const WORKING_SET = sql`${workoutSets.setType} <> 'warmup'`;
+export const WORKING_SET = sql`${workoutSets.setType} <> 'warmup'`;
 
-/**
- * Upper rep bound for an estimated 1RM.
- *
- * Every 1RM formula is a fit to observed data and they all fall apart in high
- * rep ranges. Without this cap a 25-rep back-off set estimates higher than a
- * genuine heavy triple, and the page would report a "record" the lifter has
- * never come close to. Above 12 reps the set still counts for volume and rep
- * records, just not for the estimate.
- */
-export const E1RM_MAX_REPS = 12;
-
-/**
- * Epley: weight x (1 + reps/30).
- *
- * Chosen over Brzycki, which divides by (37 - reps) and so goes vertical at 36
- * reps and NEGATIVE beyond it. Real Hevy history contains 20+-rep sets, and a
- * formula that returns nonsense on real data is the wrong formula regardless of
- * which fits a heavy triple marginally better. At reps = 1 Epley returns the
- * weight itself, so an actual single is never "estimated" into something else.
- */
-export function epley(weightKg: number, reps: number): number {
-  return weightKg * (1 + reps / 30);
-}
+// The 1RM estimate lives in ./e1rm so the chart code can use it without
+// opening a database connection; re-exported here because every existing
+// caller (and its tests) reaches for it through this module.
+export { E1RM_MAX_REPS, epley };
 
 /** True when a set can support a weight record: real load, real reps. */
 function isLoaded(set: { weightKg: number | null; reps: number | null }): boolean {
@@ -78,11 +61,15 @@ export interface ExerciseRecordSummary {
  * lists every exercise the account has ever touched, so the per-exercise shape
  * would be the N+1 the project rules ban, at a few hundred rows wide.
  *
- * Sorted by last-performed rather than by weight, because a lifter opening this
- * page is checking the lifts they are training now, not admiring a bench PR set
- * three years ago.
+ * Sorted by last-performed by default rather than by weight, because a lifter
+ * opening this page is checking the lifts they are training now, not admiring a
+ * bench PR set three years ago.
  */
-export async function listExerciseRecords(query = "", limit = 200): Promise<ExerciseRecordSummary[]> {
+export async function listExerciseRecords(
+  query = "",
+  sort: RecordSort = "recent",
+  limit = 200,
+): Promise<ExerciseRecordSummary[]> {
   const conditions: SQL[] = [WORKING_SET];
 
   const trimmed = query.trim();
@@ -112,7 +99,7 @@ export async function listExerciseRecords(query = "", limit = 200): Promise<Exer
     .innerJoin(workouts, eq(workouts.id, workoutSets.workoutId))
     .where(and(...conditions))
     .groupBy(workoutSets.exerciseTemplateId)
-    .orderBy(desc(sql`max(${workouts.startTime})`))
+    .orderBy(SORT_ORDER[sort] ?? SORT_ORDER.recent)
     .limit(limit);
 
   return rows.map((row) => ({

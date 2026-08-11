@@ -16,8 +16,32 @@ latest state. History belongs in [[log]] — this page holds only the CURRENT st
 Keep the four sections below; they are the template.
 
 ## Active task
-Nothing in flight. The last round built **records and progressive overload**, at the
-owner's request, with the feature set designed by a Fable 5 subagent as asked:
+Nothing in flight. The last round, at the owner's request, made **the Hevy account
+browsable and reworked both data screens**:
+
+- **`/routines/[routineId]` is new** — click a routine in "In Hevy" and see its
+  exercises, sets, rep ranges, rest, notes and supersets, each with **what you
+  actually lifted last time** from the workout cache. Read live from Hevy
+  (`GET /v1/routines/{id}`), because a routine may have been edited in the Hevy app.
+- **"In Hevy" is now a browser, not an inventory**: grouped by Hevy folder, rows are
+  links, each naming its first three movements plus "trained 34× · last today", with
+  filter chips (all / from a plan / made in Hevy / trained) and a search that also
+  matches exercise names. All GET params, so the state is the URL.
+- **Records reworked**: sortable (recent / heaviest / most trained / A–Z, in SQL, not
+  in memory), rows carry the headline number and a recency dot, and the exercise page
+  gained an **inline-SVG estimated-1RM trend** (server-rendered, no chart library, x
+  axis in real time so a layoff looks like one) plus per-set chips with the top set
+  marked.
+- Two real bugs were caught by running it: a duration-only exercise (plank) rendered
+  "null reps" on the index and an empty "Personal records" card; both fixed.
+
+New modules: `lib/records/last-session.ts` (one query for the last session of every
+exercise in a routine, one for per-routine training counts), `lib/records/trend.ts`
++ `e1rm.ts`, `lib/hevy/routine-detail.ts` + `routine-format.ts`,
+`components/filter-bar.tsx`, `app/ui-data.css`.
+
+The round before it built **records and progressive overload**, with the feature set
+designed by a Fable 5 subagent as asked:
 
 - [[workout-history]] — a local mirror of LOGGED workouts (two new tables, migration
   `0002`, additive), synced by one backfill then the `/v1/workouts/events` delta feed.
@@ -58,9 +82,18 @@ directions; and — via the new CDP driver below — **the swap picker itself,
 opened and paged**, which nothing in this project had ever done.
 
 ## State reached
+- **The routine detail page and both reworked data screens are built and run.**
+  Lint, `tsc`, **254 vitest tests** (up from 195), 14 wiki tests and `next build`
+  green.
+- **A local stand-in Hevy server is how the routine screens were verified.**
+  `HEVY_API_BASE_URL` (new, optional, documented in `.env.example`) points the client
+  at another host; a ~150-line mock served folders, the routine list and
+  `/v1/routines/{id}` — deliberately in the ARRAY shape, which `unwrapRoutine`
+  tolerated. Both routine screens, the filters and the search were screenshotted
+  against it, plus a 103-workout seeded history for the records screens. **This is
+  not a real account**: the response shapes are still only as true as the spec.
 - **Records, the history cache and the progression engine are built and run.**
-  Lint, `tsc`, **195 vitest tests** (up from 144), 14 wiki tests and `next build`
-  green. `/records` is in the nav between "In Hevy" and "Settings".
+  `/records` is in the nav between "In Hevy" and "Settings".
 - **The database needs migration `0002` on next boot** (tables `workouts`,
   `workout_sets`). Purely additive — two new tables, nothing existing touched — and
   it has been applied to a real MariaDB on boot, though only a throwaway one.
@@ -85,6 +118,12 @@ opened and paged**, which nothing in this project had ever done.
 - **A `next dev` server is running on port 3000 and was NOT touched.** Next 16
   refuses a second dev server for the same directory, so this round used
   `next start` on 3005/3006 instead of killing it. It is presumably the owner's.
+- **Unproven: `GET /v1/routines/{routineId}` and `GET /v1/routine_folders`**, both
+  used for the first time by the routine detail page and the folder grouping. The
+  single-routine response is unwrapped defensively (object OR array, else a 404
+  rather than a crash) and a folder-name failure degrades to an unnamed group, but
+  neither endpoint has met a real account. The read side's `title` on an exercise is
+  likewise taken from the spec, with the catalog and then the id as fallbacks.
 - **Unproven: every workout-endpoint response shape.** `HevyWorkout`,
   `HevyWorkoutEvent` and the `events?since=` semantics (inclusive? compared against
   `updated_at`?) all come from the pinned spec, which [[hevy-api]] has already caught
@@ -156,5 +195,8 @@ can be exercised.
 5a. **Use `scripts/cdp-drive.mjs` on the rest of the interactive UI.** The swap
    picker is now verified; the per-exercise Edit form, the rejected-exercises
    Restore/Clear list and the sync buttons have still never been clicked.
+5b. **Open a real routine at `/routines/[id]`** once the key and database work —
+   the only way to learn whether the single-routine and folder endpoints behave as
+   the spec claims, and whether Hevy really names exercises on the read side.
 6. Decide what to do with the compose stack (`docker compose down [-v]`), pick the
    VPS, add a `mysqldump` backup cron, and ask about deleting `data/`.

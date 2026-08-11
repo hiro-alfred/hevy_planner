@@ -26,28 +26,23 @@ export function relativeDay(iso: string, now: Date = new Date()): string {
   return `${Math.floor(days / 30)} mo ago`;
 }
 
+// formatSets() used to live here, collapsing a session into "100 kg × 8, 8, 7".
+// Both surfaces that called it now render one chip per set instead: the string
+// form hid exactly the thing a lifter reads a session for — which set was the
+// top set, and where the reps fell off.
+
 /**
- * A session's sets as a lifter would write them: "100 kg × 8, 8, 7".
+ * What the numbers in a row of set chips mean: "kg × reps", "reps", or "kg".
  *
- * Sets at the same weight collapse into one weight and a rep list, because that
- * is how the working sets of a session actually read. A change of weight starts
- * a new group rather than repeating the weight on every set.
+ * Read from the sets rather than assumed, because the answer differs per
+ * exercise: pull-ups have reps and no load, and a plank has neither. Printing
+ * "kg × reps" over a row of bare rep counts is a small lie that makes a
+ * bodyweight set look like a missing weight.
  */
-export function formatSets(sets: Array<{ weightKg: number | null; reps: number | null }>): string {
-  const groups: Array<{ weightKg: number | null; reps: number[] }> = [];
-
-  for (const set of sets) {
-    if (set.reps === null) continue;
-    const last = groups[groups.length - 1];
-    if (last && last.weightKg === set.weightKg) last.reps.push(set.reps);
-    else groups.push({ weightKg: set.weightKg, reps: [set.reps] });
-  }
-
-  return groups
-    .map((group) =>
-      group.weightKg === null || group.weightKg === 0
-        ? `${group.reps.join(", ")} reps`
-        : `${formatKg(group.weightKg)} kg × ${group.reps.join(", ")}`,
-    )
-    .join(" · ");
+export function setsLegend(sets: Array<{ weightKg: number | null; reps: number | null }>): string {
+  const weighted = sets.some((set) => set.weightKg !== null && set.weightKg > 0);
+  const repped = sets.some((set) => set.reps !== null);
+  if (weighted && repped) return "kg × reps";
+  if (weighted) return "kg";
+  return repped ? "reps" : "";
 }

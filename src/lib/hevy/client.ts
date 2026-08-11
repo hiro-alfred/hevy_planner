@@ -7,7 +7,16 @@ import type {
   HevyWorkoutEvent,
 } from "./types";
 
-const BASE_URL = "https://api.hevyapp.com";
+/**
+ * Where the Hevy API lives.
+ *
+ * Overridable ONLY so the read-only screens can be exercised against a local
+ * stand-in — this app cannot otherwise render /routines without a real Pro
+ * account, and "never verified" is how the routine detail page would ship.
+ * Unset in every real deployment, which is why the default is the real host
+ * rather than something that must be configured to work.
+ */
+const BASE_URL = process.env.HEVY_API_BASE_URL?.replace(/\/+$/, "") || "https://api.hevyapp.com";
 
 export class HevyApiError extends Error {
   constructor(
@@ -64,6 +73,29 @@ export class HevyClient {
       page_count: number;
       routines: HevyRoutine[];
     }>(`/v1/routines?page=${page}&pageSize=10`);
+  }
+
+  // One routine in full. The list endpoint returns the same shape, but reaching
+  // a routine that sits on page 7 costs seven requests at pageSize 10, so the
+  // detail page asks for it by id.
+  //
+  // The return type admits an ARRAY as well as an object: the pinned spec says
+  // `{ routine: Routine }`, and the same spec has already been wrong about a
+  // field name (see types.ts). Callers normalise rather than trust it.
+  getRoutine(routineId: string) {
+    return this.request<{ routine: HevyRoutine | HevyRoutine[] }>(
+      `/v1/routines/${encodeURIComponent(routineId)}`,
+    );
+  }
+
+  // Folder titles, so the routine list can be grouped the way the Hevy app
+  // shows it. pageSize maxes at 10 here too.
+  getRoutineFolders(page: number) {
+    return this.request<{
+      page: number;
+      page_count: number;
+      routine_folders: HevyRoutineFolder[];
+    }>(`/v1/routine_folders?page=${page}&pageSize=10`);
   }
 
   // How many workouts the account holds. Called before a backfill purely so the
