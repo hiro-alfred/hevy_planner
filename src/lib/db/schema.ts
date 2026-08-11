@@ -43,6 +43,16 @@ export const plans = mysqlTable("plans", {
   // sync_links would be lost, and the retry would create a second folder that
   // can never be deleted.
   hevyFolderId: int("hevy_folder_id"),
+  // The plan this one was forked from, if any. Editing a plan's request never
+  // overwrites it — it writes a NEW plan and points back here (owner's call), so
+  // an edit can never destroy a plan that is already synced to Hevy.
+  //
+  // Deliberately NOT a foreign key, even though it names a plans.id. A self
+  // reference would make deleting an original fail while a fork survives, or
+  // cascade the delete into forks that are perfectly good plans in their own
+  // right. A dangling id is the better failure: the UI reads it as "forked from
+  // a plan that no longer exists" and shows nothing.
+  derivedFromPlanId: int("derived_from_plan_id"),
   createdAt: varchar("created_at", { length: 32 }).notNull(),
   updatedAt: varchar("updated_at", { length: 32 }).notNull(),
 });

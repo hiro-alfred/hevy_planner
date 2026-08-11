@@ -16,11 +16,20 @@ latest state. History belongs in [[log]] — this page holds only the CURRENT st
 Keep the four sections below; they are the template.
 
 ## Active task
-Nothing in flight. The session built [[exercise-alternatives]] (the swap
-feature, previously designed-not-built) and compacted the LLM prompt and output
-shape for latency ([[plan-generation]]). Both landed green; neither has been
-exercised by a human — the swap has never been clicked, and the prompt work
-cannot be timed without an `LLM_API_KEY`.
+Nothing in flight. Two rounds landed today, both green, **neither clicked by a
+human**:
+
+1. `16c8ce3` — [[exercise-alternatives]] (the swap feature, previously
+   designed-not-built) and the [[plan-generation]] prompt/output compaction.
+   The prompt work cannot be timed without an `LLM_API_KEY`, so its latency
+   gain is inferred from measured token counts, not observed.
+2. [[plan-editing]] — per-exercise set/rep/rest editing (completing the
+   minimal-plus scope), request editing that **forks rather than overwrites**
+   (owner's call, 2026-08-11), and `/routines`, a read-only view of what is
+   actually in the Hevy account. Rationale, the Hevy cost of forking, and why
+   foreign routines cannot be edited all live on that page. One migration,
+   `0001` — additive, nullable, and its upgrade path is covered by the new
+   `src/lib/db/migrate.test.ts`.
 
 **An open decision is waiting on the owner**: a review of the intake parameter
 set ([[trainee-profile]]) recommends CUTTING `age`, reshaping `targetWeightKg`
@@ -32,11 +41,17 @@ regex in `classifyGoal` before the hypertrophy one, so an untouched form
 generates a 3–6 rep / 180 s strength plan while saying "Build muscle".
 
 ## State reached
-- **The exercise swap is built** ([[exercise-alternatives]]) and the LLM prompt
-  is compacted ([[plan-generation]]). Lint, `tsc`, 133 vitest tests (up from
-  103), 14 wiki tests and `next build` green. Neither is human-verified: the
-  picker has never been clicked, and the latency claim rests on measured token
-  counts, not a timed generation.
+- **Swap, editing, forking and the Hevy read-back are all built**
+  ([[exercise-alternatives]], [[plan-editing]], [[plan-generation]]). Lint,
+  `tsc`, **144 vitest tests** (up from 103), 14 wiki tests and `next build`
+  green. None of it is human-verified: no page has been clicked, `/routines`
+  has never run against a real account, and the latency claim rests on measured
+  token counts rather than a timed generation.
+- **The database needs a migration on next boot** (`0001`, adding
+  `plans.derived_from_plan_id`). It is additive and nullable, and
+  `migrate.test.ts` proves it applies to a populated database without data
+  loss — but it has only ever run against the throwaway server on 3307, never
+  the owner's real database.
 - **The dev server is reachable from the LAN.** `next dev` 403s `/_next/*` and the
   HMR upgrade for any origin but its own host, so `next.config.ts` now carries
   `allowedDevOrigins: ["192.168.0.*"]`. Verified by re-requesting a dev asset with

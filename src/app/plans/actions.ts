@@ -8,56 +8,11 @@ import { getHevyClient, NO_KEY_MESSAGE } from "@/lib/hevy/session";
 import { syncPlan } from "@/lib/hevy/sync";
 import { createPlan, deletePlan, getPlan, markSynced, savePlan } from "@/lib/plans";
 import { generatePlan, type PlanSource } from "@/lib/planner/generate";
-import { planRequestSchema, type PlanRequest } from "@/lib/planner/schema";
+import type { PlanRequest } from "@/lib/planner/schema";
+import { parseRequest, REQUEST_FORM_ERROR } from "./request-form";
 
 // Server actions for the plan flow: request -> generate -> preview -> sync.
-
-// An untouched optional field arrives as "". It must become `undefined`, not 0
-// and not null: the schema omits absent fields from the prompt entirely, and a
-// bodyweight of 0 would be a lie the model would act on. Text that is present
-// but unparseable is passed through as NaN so the schema rejects it, rather
-// than being silently dropped.
-function optionalNumber(value: FormDataEntryValue | null): number | undefined {
-  const text = String(value ?? "").trim();
-  return text === "" ? undefined : Number(text);
-}
-
-function optionalText(value: FormDataEntryValue | null): string | undefined {
-  const text = String(value ?? "").trim();
-  return text === "" ? undefined : text;
-}
-
-/** Undefined unless at least one anchor lift was given. */
-function parseCurrentLifts(formData: FormData) {
-  const lifts = {
-    squatKg: optionalNumber(formData.get("squatKg")),
-    benchKg: optionalNumber(formData.get("benchKg")),
-    deadliftKg: optionalNumber(formData.get("deadliftKg")),
-    overheadPressKg: optionalNumber(formData.get("overheadPressKg")),
-  };
-  return Object.values(lifts).some((value) => value !== undefined) ? lifts : undefined;
-}
-
-function parseRequest(formData: FormData): PlanRequest {
-  const focus = formData.getAll("focusMuscleGroups").map(String);
-
-  return planRequestSchema.parse({
-    goal: String(formData.get("goal") ?? "").trim(),
-    sessionMinutes: Number(formData.get("sessionMinutes")),
-    sessionsPerWeek: Number(formData.get("sessionsPerWeek")),
-    split: String(formData.get("split") ?? "auto"),
-    experience: String(formData.get("experience") ?? "beginner"),
-    equipment: formData.getAll("equipment").map(String),
-
-    bodyweightKg: optionalNumber(formData.get("bodyweightKg")),
-    targetWeightKg: optionalNumber(formData.get("targetWeightKg")),
-    age: optionalNumber(formData.get("age")),
-    currentLifts: parseCurrentLifts(formData),
-    focusMuscleGroups: focus.length > 0 ? focus : undefined,
-    injuries: optionalText(formData.get("injuries")),
-    notes: optionalText(formData.get("notes")),
-  });
-}
+// Editing lives in plans/[id]/edit-actions.ts.
 
 /** Where a freshly generated plan lands, and what the preview should announce. */
 function previewPath(planId: number, source: PlanSource, degraded: boolean): string {
@@ -81,9 +36,7 @@ export async function createPlanAction(
   try {
     request = parseRequest(formData);
   } catch {
-    return errorState(
-      "Check the form: a goal and at least one equipment option are required, and the optional numbers must be realistic (bodyweight 30–250 kg, age 13–100, at most two focus areas).",
-    );
+    return errorState(REQUEST_FORM_ERROR);
   }
 
   const planId = await createPlan(request);

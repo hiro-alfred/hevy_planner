@@ -120,4 +120,29 @@
     padding: 0.4375rem 0.75rem;
     font-size: 0.8125rem;
   }
+
+  /* ---- per-exercise edit ----------------------------------------------- */
+
+  /* Four short numeric inputs on one line where there is room, wrapping to two
+   * on a phone. auto-fit rather than a fixed column count so the rep-range pair
+   * stays adjacent at every width. */
+  .ui-editgrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
+    gap: 0.75rem;
+  }
+
+  .ui-editgrid label {
+    display: block;
+    margin-bottom: 0.3125rem;
+  }
+
+  /* Numeric fields size to their content rather than stretching: a three-digit
+   * rest value in a full-width input reads as an empty box with a number in the
+   * corner. */
+  .ui-field--num {
+    width: 100%;
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
 }

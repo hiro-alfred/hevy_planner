@@ -2,13 +2,23 @@
 
 import { useState } from "react";
 import { FOCUS_MUSCLE_GROUPS, muscleGroupLabel } from "@/lib/planner/profile";
+import type { PlanRequest } from "@/lib/planner/schema";
 import { Field, LABEL_CLASSES, Section } from "./field";
 
 // The optional trainee profile, as three form sections. Every field here can be
 // left blank: skipping all of them produces exactly the request the form made
 // before these existed.
+//
+// `defaults` is populated when editing an existing plan's request. Absent
+// values stay absent rather than becoming 0 — an empty input is what the parser
+// reads as "not given", and a zero would be a value the user never typed.
 
 const MAX_FOCUS = 2;
+
+/** Optional numbers render as an empty input, never as "0" or "undefined". */
+function numberValue(value: number | undefined): string | undefined {
+  return value === undefined ? undefined : String(value);
+}
 
 function NumberField({
   name,
@@ -18,12 +28,14 @@ function NumberField({
   max,
   step = "any",
   placeholder,
+  defaultValue,
 }: {
   name: string;
   label: string;
   hint?: string;
   min: number;
   max: number;
+  defaultValue?: string;
   /**
    * Defaults to "any", and every weight field leaves it there.
    *
@@ -47,13 +59,14 @@ function NumberField({
         max={max}
         step={step}
         placeholder={placeholder}
+        defaultValue={defaultValue}
         className="ui-field ui-mono"
       />
     </Field>
   );
 }
 
-export function AboutYouFields() {
+export function AboutYouFields({ defaults }: { defaults?: PlanRequest }) {
   return (
     <Section title="About you" note="Optional — sharpens load suggestions and pacing.">
       <div className="grid gap-4 sm:grid-cols-3">
@@ -63,6 +76,7 @@ export function AboutYouFields() {
           min={30}
           max={250}
           placeholder="82"
+          defaultValue={numberValue(defaults?.bodyweightKg)}
         />
         <NumberField
           name="targetWeightKg"
@@ -70,10 +84,19 @@ export function AboutYouFields() {
           min={30}
           max={250}
           placeholder="78"
+          defaultValue={numberValue(defaults?.targetWeightKg)}
         />
         {/* The one genuinely whole-numbered field, so it keeps a step of 1;
             min={13} makes every integer in range valid. */}
-        <NumberField name="age" label="Age" min={13} max={100} step={1} placeholder="31" />
+        <NumberField
+          name="age"
+          label="Age"
+          min={13}
+          max={100}
+          step={1}
+          placeholder="31"
+          defaultValue={numberValue(defaults?.age)}
+        />
       </div>
     </Section>
   );
@@ -87,13 +110,16 @@ export function AboutYouFields() {
  * go and test a max. These are what let the plan arrive in Hevy with starting
  * weights filled in instead of blank.
  */
-export function WorkingWeightsFields() {
+export function WorkingWeightsFields({ defaults }: { defaults?: PlanRequest }) {
+  const lifts = defaults?.currentLifts;
   return (
     <Section
       title="Your working weights"
       note="Optional — give these and the plan arrives in Hevy with suggested starting weights instead of blanks."
     >
-      <details className="ui-disclosure">
+      {/* Opened when it already holds values, so an edit does not hide numbers
+          the user gave behind a collapsed summary. */}
+      <details className="ui-disclosure" open={lifts !== undefined}>
         <summary>Add current lifts</summary>
         <div className="grid gap-4 pt-4 sm:grid-cols-2">
           <NumberField
@@ -102,6 +128,7 @@ export function WorkingWeightsFields() {
             min={1}
             max={500}
             placeholder="100"
+            defaultValue={numberValue(lifts?.squatKg)}
           />
           <NumberField
             name="benchKg"
@@ -109,6 +136,7 @@ export function WorkingWeightsFields() {
             min={1}
             max={500}
             placeholder="80"
+            defaultValue={numberValue(lifts?.benchKg)}
           />
           <NumberField
             name="deadliftKg"
@@ -116,6 +144,7 @@ export function WorkingWeightsFields() {
             min={1}
             max={500}
             placeholder="140"
+            defaultValue={numberValue(lifts?.deadliftKg)}
           />
           <NumberField
             name="overheadPressKg"
@@ -123,6 +152,7 @@ export function WorkingWeightsFields() {
             min={1}
             max={500}
             placeholder="50"
+            defaultValue={numberValue(lifts?.overheadPressKg)}
           />
         </div>
         <p className="pt-3 text-xs text-ui-faint">
@@ -133,10 +163,10 @@ export function WorkingWeightsFields() {
   );
 }
 
-export function WorkAroundFields() {
+export function WorkAroundFields({ defaults }: { defaults?: PlanRequest }) {
   // Enforced here as well as in the schema so the third tick is impossible
   // rather than merely rejected after a round trip.
-  const [focus, setFocus] = useState<string[]>([]);
+  const [focus, setFocus] = useState<string[]>(defaults?.focusMuscleGroups ?? []);
 
   function toggleFocus(group: string) {
     setFocus((current) =>
@@ -156,6 +186,7 @@ export function WorkAroundFields() {
           name="injuries"
           maxLength={200}
           placeholder="e.g. right shoulder impingement, lower back twinges on deadlifts"
+          defaultValue={defaults?.injuries}
           className="ui-field"
         />
       </Field>
@@ -196,6 +227,7 @@ export function WorkAroundFields() {
           rows={4}
           maxLength={500}
           placeholder="Exercises you hate or can't do, other training (I run Tuesdays), schedule quirks, what's worked before."
+          defaultValue={defaults?.notes}
           className="ui-field"
         />
       </Field>

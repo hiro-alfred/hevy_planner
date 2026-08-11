@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionButton } from "@/components/action-button";
+import { buttonClasses } from "@/components/button-styles";
 import { Card } from "@/components/card";
 import { StatusChip } from "@/components/status-chip";
 import { getTemplatesByIds } from "@/lib/hevy/catalog";
@@ -9,6 +11,7 @@ import { getPlan } from "@/lib/plans";
 import { collectTemplateIds, validatePlan } from "@/lib/planner/validate";
 import { getHevyKeyStatus } from "@/lib/settings";
 import { deletePlanAction, regeneratePlanAction, syncPlanAction } from "../actions";
+import { duplicatePlanAction } from "./edit-actions";
 import { PlanPreview } from "./plan-preview";
 import { RejectedExercises } from "./rejected-exercises";
 
@@ -59,6 +62,20 @@ export default async function PlanPage({ params, searchParams }: PageProps<"/pla
             {row.request.sessionsPerWeek} sessions per week · {row.request.sessionMinutes} min ·{" "}
             {row.request.experience} · {row.request.goal}
           </p>
+          {/* A fork keeps its parent's title, so without this a plan and its
+              edit are indistinguishable. The link is not guarded against the
+              parent having been deleted — derived_from_plan_id has no foreign
+              key on purpose — so it may 404, which reads correctly as "the
+              plan this came from is gone". */}
+          {row.derivedFromPlanId !== null && (
+            <p className="text-sm text-ui-faint">
+              Edited from{" "}
+              <Link href={`/plans/${row.derivedFromPlanId}`} className="underline">
+                plan {String(row.derivedFromPlanId).padStart(3, "0")}
+              </Link>
+              , which is unchanged.
+            </p>
+          )}
         </div>
         {plan && (
           <StatusChip
@@ -145,11 +162,23 @@ export default async function PlanPage({ params, searchParams }: PageProps<"/pla
                   pendingLabel="Syncing…"
                   tone="primary"
                 />
+                <Link href={`/plans/${planId}/edit`} className={buttonClasses("secondary")}>
+                  Edit request
+                </Link>
+                <ActionButton
+                  action={duplicatePlanAction.bind(null, planId)}
+                  label="Duplicate"
+                  pendingLabel="Duplicating…"
+                />
                 <ActionButton
                   action={regeneratePlanAction.bind(null, planId)}
                   label="Regenerate"
                   pendingLabel="Regenerating…"
-                  confirm="Replace this plan with a freshly generated one?"
+                  confirm={
+                    syncState.syncedDays > 0
+                      ? "Replace this plan's sessions with freshly generated ones? The routines already in Hevy stay linked, so the next sync overwrites them. Use 'Edit request' instead if you want to keep this plan as it is."
+                      : "Replace this plan with a freshly generated one?"
+                  }
                 />
                 <ActionButton
                   action={deletePlanAction.bind(null, planId)}

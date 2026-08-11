@@ -53,6 +53,17 @@ export class HevyClient {
     }>(`/v1/exercise_templates?page=${page}&pageSize=100`);
   }
 
+  // Reading routines back. pageSize maxes at 10 here — exercise_templates is
+  // the ONLY endpoint that allows 100 — so a large account costs several round
+  // trips, which is why nothing calls this on a hot path.
+  getRoutines(page: number) {
+    return this.request<{
+      page: number;
+      page_count: number;
+      routines: HevyRoutine[];
+    }>(`/v1/routines?page=${page}&pageSize=10`);
+  }
+
   createRoutineFolder(title: string) {
     return this.request<{ routine_folder: HevyRoutineFolder }>(
       "/v1/routine_folders",

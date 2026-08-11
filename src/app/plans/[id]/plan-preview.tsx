@@ -1,5 +1,6 @@
 import { exerciseSeconds } from "@/lib/planner/prescription";
 import type { Plan, PlanExercise } from "@/lib/planner/schema";
+import { ExerciseEdit } from "./exercise-edit";
 import { ExerciseSwap } from "./exercise-swap";
 
 // Rendering of a generated plan. Read-only except for the per-exercise swap,
@@ -63,6 +64,16 @@ export function PlanPreview({ plan, planId }: { plan: Plan; planId: number }) {
                   <span className="ui-mono text-xs text-ui-faint">
                     {describeSets(exercise)} · {exercise.restSeconds}s rest
                   </span>
+                  <ExerciseEdit
+                    planId={planId}
+                    dayIndex={index}
+                    exerciseIndex={exerciseIndex}
+                    templateId={exercise.exerciseTemplateId}
+                    sets={exercise.sets.length}
+                    repStart={exercise.sets[0]!.repRange.start}
+                    repEnd={exercise.sets[0]!.repRange.end}
+                    restSeconds={exercise.restSeconds}
+                  />
                   <ExerciseSwap
                     planId={planId}
                     dayIndex={index}

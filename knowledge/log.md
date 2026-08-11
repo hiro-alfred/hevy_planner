@@ -233,3 +233,40 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   `classifyGoal` before the hypertrophy one, so an untouched form silently generates
   a 3–6 rep / 180 s strength plan. Lint, `tsc`, 133 vitest tests, 14 wiki tests and
   `next build` all green.
+- 2026-08-11 — **Built [[plan-editing]]: editing, forking, and reading the Hevy
+  account back.** Three pieces on one owner brief ("see my current plans and edit
+  them"). (1) `/routines` walks `GET /v1/routines` — the first READ this app has ever
+  done against routines — and labels each one with the plan that owns it, closing
+  three blind spots at once: routines made in the Hevy app were invisible, routines
+  orphaned by a deleted plan were invisible, and the undocumented routine cap could
+  previously only be discovered by a POST 403 landing partway through a sync.
+  (2) Per-exercise set/rep/rest editing, completing the minimal-plus scope
+  [[plan-pipeline]] closed; the interesting part is what happens to existing sets
+  when the count changes, so growing copies the last set's weight ("one more of
+  these") and shrinking drops from the end, both tested. (3) Request editing.
+  The shape of (3) is the owner's call and worth recording: **editing a request
+  FORKS rather than overwriting.** The reason is Hevy, not neatness — a request
+  change regenerates every day, and doing that in place would leave the plan's
+  existing `sync_links` pointing at real routines, so the next sync would PUT
+  entirely different content over routines the user never agreed to lose, with no
+  DELETE to undo it. Forking makes that impossible instead of merely warned about.
+  The cost is honest and stated in the UI: a fork carries no `sync_links` and no
+  folder id, so its first sync CREATES a second set of permanent routines.
+  `derived_from_plan_id` has deliberately NO foreign key — a self reference would
+  either block deleting an original while a fork survives or cascade into forks that
+  are good plans; a dangling id reading as "forked from a plan that no longer
+  exists" is the better failure. Fine-grained tweaks stay in place, since forking
+  per tweak would leave a dozen near-identical plans after an afternoon on one day;
+  an explicit Duplicate covers deliberate forking. Flagged in the wiki as an
+  interpretation to revisit.
+  Also established that **foreign routines cannot be made editable without
+  extending the plan model first**: `planSetSchema` holds only a rep range and
+  `to-hevy.ts` hard-codes `reps`, `superset_id`, `duration_seconds`,
+  `distance_meters` and `custom_metric` to null, so round-tripping a routine built
+  in the Hevy app through a full-replace PUT would silently destroy its fixed rep
+  counts, supersets and any duration work. Migration `0001` is additive and
+  nullable; a new `migrate.test.ts` walks the real UPGRADE path (migrate to the
+  previous version, insert data, migrate forward, assert survival) because every
+  other DB test migrates an empty database and would pass a migration that is
+  destructive only on populated data. Lint, `tsc`, 144 vitest tests, 14 wiki tests
+  and `next build` green; nothing human-verified.

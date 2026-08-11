@@ -7,6 +7,7 @@ import { StatusChip } from "@/components/status-chip";
 const NAV = [
   { href: "/", label: "Plans" },
   { href: "/plans/new", label: "New plan" },
+  { href: "/routines", label: "In Hevy" },
   { href: "/settings", label: "Settings" },
 ];
 

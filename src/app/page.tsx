@@ -30,6 +30,10 @@ function PlanRow({ plan, index }: { plan: PlanListItem; index: number }) {
           <span className="ui-item__meta block">
             {plan.sessionsPerWeek} days per week · {plan.goal}
             {plan.syncedDays > 0 && ` · ${plan.syncedDays} routines`}
+            {/* Forks keep their parent's title, so without this the list reads
+                as several identical plans. */}
+            {plan.derivedFrom !== null &&
+              ` · edited from plan ${String(plan.derivedFrom).padStart(3, "0")}`}
           </span>
         </span>
         <StatusChip tone={status.tone} pulse={plan.syncLabel === "changes_pending"}>

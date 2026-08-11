@@ -1,0 +1,1 @@
+ALTER TABLE `plans` ADD `derived_from_plan_id` int;

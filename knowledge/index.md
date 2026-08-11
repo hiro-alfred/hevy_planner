@@ -50,6 +50,8 @@ category. Start here; conventions live in [[schema]].
   the volume model, and post-validation.
 - [[hevy-sync]] — create-once-then-PUT, content hashing, and why a duplicate
   routine is unrecoverable.
+- [[plan-editing]] — why editing a request forks instead of overwriting, the
+  per-exercise tweaks, and reading the Hevy account back at `/routines`.
 - [[deployment]] — standalone build, Docker image shape, the runtime settings
   that break it, and getting a daemon onto the dev machine.
 - [[ui-design-system]] — the Graphite theme: dark-only tokens, the CSS file

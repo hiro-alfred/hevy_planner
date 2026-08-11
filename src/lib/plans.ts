@@ -24,6 +24,8 @@ export interface PlanListItem {
   goal: string;
   createdAt: string;
   syncedDays: number;
+  /** The plan this was forked from. May name a plan since deleted. */
+  derivedFrom: number | null;
 }
 
 /**
@@ -47,6 +49,7 @@ export async function listPlans(): Promise<PlanListItem[]> {
         request: plans.request,
         plan: plans.plan,
         createdAt: plans.createdAt,
+        derivedFromPlanId: plans.derivedFromPlanId,
       })
       .from(plans)
       .orderBy(desc(plans.createdAt)),
@@ -70,6 +73,7 @@ export async function listPlans(): Promise<PlanListItem[]> {
       goal: row.request.goal,
       createdAt: row.createdAt,
       syncedDays: planLinks.length,
+      derivedFrom: row.derivedFromPlanId,
     };
   });
 }
@@ -98,6 +102,48 @@ function describeSyncLabel(plan: Plan | null, links: SyncLinkRow[]): PlanSyncLab
 export async function getPlan(id: number): Promise<PlanRow | null> {
   const [row] = await db.select().from(plans).where(eq(plans.id, id)).limit(1);
   return row ?? null;
+}
+
+/**
+ * Copies a plan into a NEW row rather than editing the original in place.
+ *
+ * This is the whole shape of editing here (owner's decision): a plan that has
+ * been synced to Hevy is not something an edit may quietly rewrite, because the
+ * routines it produced are permanent and undeletable. Forking makes an edit
+ * non-destructive by construction — the original plan, and the Hevy routines it
+ * owns, are untouched whatever happens to the fork.
+ *
+ * Two things deliberately do NOT carry over:
+ *
+ * - **`hevyFolderId` is null.** Inheriting it would make the fork's first sync
+ *   drop new routines into the original's folder, so two plans would share one
+ *   folder and the folder title would describe only one of them.
+ * - **`sync_links` are not copied.** Copying them would point the fork at the
+ *   ORIGINAL's routines, and the fork's first sync would then PUT over a plan
+ *   the user explicitly chose not to overwrite — the exact destruction forking
+ *   exists to prevent. The consequence is the honest one: syncing a fork
+ *   creates a fresh set of routines, and the UI has to say so before it does.
+ *
+ * `excludedExercises` DOES carry over, inside the request — a fork is a
+ * continuation of the same thinking, and re-rejecting the same exercises is
+ * exactly the tedium the rejection list exists to remove.
+ */
+export async function forkPlan(
+  fromPlanId: number,
+  request: PlanRequest,
+  plan: Plan | null,
+): Promise<number> {
+  const now = new Date().toISOString();
+  const [result] = await db.insert(plans).values({
+    request,
+    plan,
+    status: plan ? "generated" : "draft",
+    hevyFolderId: null,
+    derivedFromPlanId: fromPlanId,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return result.insertId;
 }
 
 /** Records the request before generation runs, so a plan is always reproducible. */
