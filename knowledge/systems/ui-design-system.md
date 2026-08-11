@@ -4,7 +4,7 @@ aliases: [ui, design system, graphite theme, styling, hud theme]
 tags: [ui, css, frontend, motion]
 type: subsystem
 created: 2026-08-08
-updated: 2026-08-09
+updated: 2026-08-11
 sources:
   [
     src/app/globals.css,
@@ -118,6 +118,14 @@ animation and transition, so no new animation has to remember to opt out.
   Clearing `.next` is the fix. Ordinary style edits hot-reload fine.
 - **Buttons stretch in column layouts.** `ActionButton` wraps its button in a flex
   column, which made it full-width inside a card until `items-start` was added.
+- **A hydration mismatch can come from the browser, not the app.** Bitdefender's
+  extension writes `bis_skin_checked`, `bis_register` and `__processed_<uuid>__` onto
+  elements before React hydrates, and React then reports the whole tree as a
+  server/client attribute mismatch. Read the diff before believing it: if every `-`
+  line is an injected attribute and no `className`, text or date differs, the markup
+  is correct and the fix is disabling the extension on the dev origin.
+  `suppressHydrationWarning` is the wrong tool — it covers a single element rather
+  than the nested divs, and it would mask real mismatches later.
 - **Screenshots catch the reveal animation mid-flight.** Headless Chrome with
   `--virtual-time-budget` froze the page at opacity ~0 with the stat counters still
   at 0. `--force-prefers-reduced-motion` is the fix, and it is also the honest static

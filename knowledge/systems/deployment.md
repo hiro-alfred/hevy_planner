@@ -4,7 +4,7 @@ aliases: [deploy, docker, dockerfile, standalone, hosting, compose, docker-compo
 tags: [subsystem, deployment, docker, ops, mariadb]
 type: subsystem
 created: 2026-08-08
-updated: 2026-08-08
+updated: 2026-08-11
 sources: [Dockerfile, docker-compose.yml, .dockerignore, .env.example, next.config.ts, src/instrumentation.ts, src/lib/db/migrate.ts, src/lib/planner/provider.ts]
 ---
 
@@ -29,6 +29,20 @@ write and will sit in its boot-time connect retry until it gives up.
 - `serverExternalPackages: ["mysql2"]` — the driver resolves some internals
   dynamically, which the bundler cannot follow; leaving it external keeps it a
   plain runtime `require`.
+
+## …and a third that only matters in dev
+
+`allowedDevOrigins: ["192.168.0.*"]` is the third key in `next.config.ts` and has no
+effect on the built image. `next dev` answers `/_next/*` **and the HMR WebSocket
+upgrade** with 403 for any `Origin` other than the host it was started on
+(`localhost`), so opening the dev server at the machine's LAN address — from a
+phone, or another desktop — yields a page whose dev assets all fail and whose hot
+reload never connects. Next's `blockCrossSiteDEV` compares the request `Origin`
+(falling back to `Referer` for no-cors loads) against `localhost`, the `-H`
+hostname, and this list; patterns are matched segment-wise, so the wildcard
+survives a DHCP lease change. Editing `next.config.ts` restarts the dev server by
+itself. Verified 2026-08-11: a request to `/_next/static/…` carrying
+`Origin: http://192.168.0.9:3000` returns 404 — routed normally — instead of 403.
 
 ## Image shape
 

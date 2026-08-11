@@ -4,7 +4,7 @@ aliases: [log archive]
 tags: [meta, journal]
 type: meta
 created: 2026-08-08
-updated: 2026-08-08
+updated: 2026-08-11
 sources: []
 ---
 
@@ -13,4 +13,110 @@ sources: []
 Entries rotated out of [[log]] when it approaches the 300-line cap ([[schema]]).
 Oldest at the top; keep original entry lines verbatim.
 
-(empty — nothing rotated yet)
+- 2026-08-08 — bootstrap: vault created; specials plus 6 initial pages synthesized
+  from the repo (see [[wiki-bootstrap]] for decisions made). Wiki test passing.
+- 2026-08-08 — design session: architecture decided with owner and recorded in
+  [[product-architecture]]; README.md rewritten as the design doc (via Sonnet
+  subagent), CLAUDE.md gained code standards, .gitignore now covers .env.
+  [[project-overview]] updated (product vision no longer UNVERIFIED).
+- 2026-08-08 — architecture round 2 + scaffold: Hevy OpenAPI spec fetched via Opus
+  subagent and pinned (docs/hevy-openapi.json), verified facts in new [[hevy-api]];
+  core-flow design in new [[plan-pipeline]] (create-once-then-PUT sync forced by
+  no-DELETE + routine cap); [[product-architecture]] updated (self-hosted server
+  not Vercel, SQLite + Drizzle, AI SDK, kg default); [[hevy-platform]] open
+  questions answered. Next.js scaffold merged (create-next-app + npm), Drizzle
+  schema + planner Zod schema + thin Hevy client written, catalog/sync/generate
+  left as documented stubs. Build + lint + wiki tests green.
+- 2026-08-08 — milestone 1 (catalog): `src/lib/hevy/catalog.ts` implemented
+  (fetch-then-write refresh, single-transaction upsert + prune, one-query
+  candidate filter incl. json_each secondary-muscle match), spec enums extracted
+  to `constants.ts`. vitest added as the app-side runner ([[testing-setup]]);
+  13 tests caught two real bugs (bare `0` in ORDER BY read as a column ordinal;
+  Windows SQLite file lock). New [[catalog-service]] page. Build, lint, vitest,
+  wiki tests green.
+- 2026-08-08 — milestone 1 review (Fable, commit 4f6b2fd): no blockers. Acted on
+  the truncated-walk finding — a `page_count` past the safety cap now aborts
+  instead of pruning everything beyond it. Refresh also switched from
+  upsert-then-prune-by-timestamp to clear-then-insert in one transaction, after
+  a test caught two same-millisecond refreshes sharing a `fetchedAt`. Deferred
+  finding: candidate lists are not balanced per muscle group, so generation
+  should call `getCandidates` once per training day (noted for milestone 3).
+- 2026-08-08 — milestone 2 (settings): `/settings` page with masked key entry,
+  test-connection and catalog-refresh actions; `src/lib/settings.ts` +
+  `src/lib/hevy/session.ts` as the single key path; nav shell added to the
+  layout. New [[key-handling]] page. Verified against a running server: the
+  stored key appears 0 times in the rendered HTML, only its last 4 do.
+- 2026-08-08 — milestone 2 review (Fable, fbe29d5): one important finding, fixed
+  immediately because milestone 3 was about to copy the pattern — the error
+  helper's `return error.message` fallback could echo the submitted key (a key
+  containing a newline makes the fetch layer throw with the value quoted).
+  Closed by `normalizeHevyApiKey` (shape-check before the fetch layer) plus
+  `src/lib/hevy/errors.ts`, a context-aware translator that only returns
+  status-derived or deliberately-authored text. Also: short keys no longer
+  render in full, and clearHevyKeyAction no longer escapes its transition.
+- 2026-08-08 — milestone 3 (plan flow): split→days, volume model, rule-based
+  generator, LLM path (AI SDK, provider from env, `claude-opus-5` default),
+  post-validation with one retry, `/plans/new` + `/plans/[id]`, and
+  create-once-then-PUT sync. New [[plan-generation]] and [[hevy-sync]] pages.
+  Two real bugs caught by tests: the session-length formula had drifted from
+  the design (dropping the last set's rest), and an exercise-only cap made every
+  60+ minute session fail its own validation. 54 vitest tests; verified against
+  a running server with a seeded 192-exercise catalog (4-day plan, 0 violations).
+- 2026-08-08 — milestone 4 (dashboard): create-next-app home page replaced with
+  a plans list (status + synced-routine count via one grouped join) and a
+  setup checklist. Caught a runtime-only bug the build passes: a server
+  component cannot CALL a function exported from a `"use client"` module —
+  `buttonClasses` moved to `src/components/button-styles.ts`. Noted in
+  [[testing-setup]]; every route now curl-checked against `next start`.
+- 2026-08-08 — milestone 5 (cleanup): unused create-next-app SVGs deleted,
+  `.env.example` and README corrected (LLM_MODEL documented; all three LLM vars
+  marked optional, since the app generates plans without any of them). Verified
+  no inline styles, no file over 300 lines, no TODOs, no stray logging.
+  Deliberately-unused-but-planned exports recorded in [[hot]] rather than
+  deleted, so review passes stop re-flagging them.
+- 2026-08-08 — milestone 3 review (Fable, 4bd98b7): key-leak fix confirmed
+  closed, Hevy write schema confirmed correct, but TWO important write-path
+  bugs found and fixed immediately ([[hevy-sync]]). (1) The folder id lived only
+  on `sync_links`, which is written only after a routine create succeeds — so a
+  first sync whose first create 403'd lost it and the retry created a second,
+  undeletable folder. Folder id moved to the plans row (migration 0001), written
+  the moment the folder is created. (2) A single training day with no candidates
+  produced an empty day that sync would have pushed as an empty routine, burning
+  routine-cap quota permanently; generation now aborts on ANY unfillable day and
+  sync refuses empty days before its first API call. Also added
+  `UNIQUE(plan_id, day_index)`, a `staleRoutines` warning for plans that shrank,
+  and moved `getLlmConfig()` inside the try so a misconfigured provider falls
+  back to the rules. 57 tests; migration verified applying to an existing DB.
+- 2026-08-08 — milestone 6 (deploy readiness): `output: 'standalone'` +
+  `serverExternalPackages: ['better-sqlite3']`, multi-stage Dockerfile
+  (non-root, `/data` volume, ships `drizzle/` so boot migrations work),
+  `.dockerignore`. New [[deployment]] page. Verified by running the standalone
+  server in the image's file layout: migrations applied to a fresh DB and all
+  pages served. Found that standalone binds the machine hostname unless
+  `HOSTNAME` is set — the container would be unreachable without it.
+- 2026-08-08 — sync-fix review (Fable, 1fdb910): both fixes confirmed genuine,
+  migration verified against populated pre-migration DBs. It also caught that
+  the concurrency claim was HALF WRONG — `UNIQUE(plan_id, day_index)` fires only
+  after the duplicate routine already exists in Hevy, so it guards the database,
+  not Hevy. Closed with a per-plan lock (`lib/hevy/plan-lock.ts`) making
+  read-decide-write one critical section; a test firing two syncs at once fails
+  on that very constraint when the lock is removed. Also: migration 0001 now
+  dedups `sync_links` before creating the index (a DB already holding duplicates
+  would otherwise fail the migration on every boot and brick the app — verified
+  with a duplicate-row fixture), syncing a deleted plan is refused instead of
+  stranding a folder, and the pre-migration folder id is backfilled onto the
+  plan row. Lost-response duplication documented as a known gap in [[hevy-sync]].
+- 2026-08-08 — FINAL cross-cutting review (Fable, whole run 3413321..HEAD):
+  no security findings (both keys traced end to end), no duplicated core logic,
+  no dead code beyond what [[hot]] records on purpose — but three seams BETWEEN
+  milestones, all fixed. (1) Sync never re-ran the validator, so a user could
+  press Sync on a plan whose own warning said its exercise ids don't resolve —
+  it now refuses unresolvable ids before the first API call. (2) `deletePlan`
+  did not take the sync lock, so a delete landing mid-sync could create a Hevy
+  routine whose id could never be recorded. (3) The dashboard derived sync state
+  from the `status` column while the plan page used content hashes: regenerating
+  a synced plan reproduced an identical plan, so one screen said "Not synced"
+  while the other said "up to date". Both now read the hashes. Minor: the
+  provenance banner survived a regenerate and could describe the previous plan;
+  empty equipment meant "anything" while the error text said one was required.
+  63 tests. Run complete.

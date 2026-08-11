@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
   // mysql2 resolves some of its internals dynamically, which the bundler
   // cannot follow. Leaving it external keeps it a plain runtime require.
   serverExternalPackages: ["mysql2"],
+
+  // Dev only: `next dev` answers /_next/* and the HMR socket with 403 for any
+  // origin other than the host it was started on (localhost). Reaching the dev
+  // server from a phone or another machine on the LAN needs that origin listed;
+  // the wildcard keeps it working across DHCP lease changes.
+  allowedDevOrigins: ["192.168.0.*"],
 };
 
 export default nextConfig;
