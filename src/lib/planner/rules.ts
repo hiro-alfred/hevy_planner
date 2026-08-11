@@ -9,8 +9,15 @@ import type { TrainingDayTemplate } from "./split";
 // working with no LLM provider configured, and the reference the generated plan
 // is validated against. Same request in, same plan out — no randomness anywhere.
 
-/** Compounds first: they earn their session time, so they lead each day. */
-const EQUIPMENT_RANK: Record<string, number> = {
+/**
+ * Compounds first: they earn their session time, so they lead each day.
+ *
+ * Exported because the swap picker ranks its alternatives the same way — an
+ * option list that ordered movements differently from the generator would be
+ * offering "better" exercises than the one it is replacing
+ * (knowledge/decisions/exercise-alternatives.md).
+ */
+export const EQUIPMENT_RANK: Record<string, number> = {
   barbell: 0,
   machine: 1,
   dumbbell: 2,
@@ -22,7 +29,7 @@ const EQUIPMENT_RANK: Record<string, number> = {
   other: 8,
 };
 
-function rank(row: CatalogRow): number {
+export function rank(row: CatalogRow): number {
   return EQUIPMENT_RANK[row.equipmentCategory] ?? 9;
 }
 

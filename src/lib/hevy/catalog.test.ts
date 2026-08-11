@@ -201,6 +201,19 @@ describe("getCandidates", () => {
     expect(rows[0]!.id).toBe("db-curl");
   });
 
+  // Backs the exercise-swap picker and the per-plan rejection list: excluded
+  // exercises must be gone from the POOL, not filtered out afterwards, or a
+  // `limit` would silently spend its slots on rows that get discarded.
+  it("leaves out excluded ids, in the same query", async () => {
+    const rows = await catalog.getCandidates({ muscleGroups: ["biceps"], excludeIds: ["db-curl"] });
+    expect(rows.map((r) => r.id)).toEqual(["row-machine"]);
+  });
+
+  it("ignores an empty exclusion list rather than matching nothing", async () => {
+    const rows = await catalog.getCandidates({ muscleGroups: ["biceps"], excludeIds: [] });
+    expect(rows.map((r) => r.id).sort()).toEqual(["db-curl", "row-machine"]);
+  });
+
   // Regression: the rep-based list was guessed from the naming pattern and held
   // two types the API never emits ("bodyweight_reps", "bodyweight_assisted_reps")
   // while missing the two it does — so assisted pull-ups and weighted dips were

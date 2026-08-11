@@ -203,3 +203,33 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   server/client bug. Also confirmed the obsidian CLI's `vault=`/`file=` form works
   and filed the first-call-hangs behaviour into [[knowledge-wiki]], where it survives
   the next hot.md overwrite. Wiki tests green.
+- 2026-08-11 — **Built [[exercise-alternatives]] and compacted the LLM prompt.** The
+  swap feature shipped to its existing design in one pass: `alternatives.ts` (pure —
+  ranking, `substitute`, `applySwap`), `excludedExercises` on the request (JSON
+  column, no migration), `excludeIds` on `getCandidates`, a rejection rule in
+  `validatePlan`, two actions under `withPlanLock` with an `expectedTemplateId`
+  guard, and an inline picker island. The design's own known gap — nothing could
+  view or clear rejections, so the first accidental swap was permanent — was closed
+  in the same pass with a Restore/Clear all list. The one claim worth a test is that
+  a swap cannot break the ±20% session-length contract: it holds because `substitute`
+  carries `sets` and `restSeconds` over verbatim, and a test now asserts
+  `sessionSeconds` is identical across a cross-class swap.
+  Separately, generation was made much cheaper by giving the model its OWN schema
+  ([[plan-generation]]): sets collapse to a count, exercises are picked by a small
+  integer instead of a 36-char UUID, `name` is dropped (it was always overwritten by
+  the catalog anyway), and days sharing a candidate pool print it once. Measured
+  402 → 53 characters per exercise of output, and a 6-day PPL prompt of 3.0k chars
+  against a 20.6k-char candidate block alone before. The integer indirection is also
+  a correctness win — an out-of-range index is detectable where a hallucinated UUID
+  survived to sync — and unresolvable numbers are now DROPPED and reported rather
+  than carried. **Latency was not re-measured: still no `LLM_API_KEY`.** Token counts
+  are observed; the wall-clock improvement is an inference from them.
+  A Fable 5 subagent reviewed the intake parameter set against the project's own
+  "must mechanically change the plan" bar. Nothing was changed — its main
+  recommendations (cut `age`, reshape `targetWeightKg` into an asked-for `phase`,
+  add a `goalKind` override) overturn recorded decisions in [[trainee-profile]] and
+  are the owner's call. It did surface a live bug, verified here: the plan form's
+  default goal text "Build muscle and get stronger" hits the STRENGTH regex in
+  `classifyGoal` before the hypertrophy one, so an untouched form silently generates
+  a 3–6 rep / 180 s strength plan. Lint, `tsc`, 133 vitest tests, 14 wiki tests and
+  `next build` all green.

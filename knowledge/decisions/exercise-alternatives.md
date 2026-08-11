@@ -1,28 +1,35 @@
 ---
-title: Exercise alternatives — swap design (not yet built)
+title: Exercise alternatives — the swap feature
 aliases: [alternatives, swap, swap exercise, other alternatives]
 tags: [decision, planner, ui, sync, design]
 type: design
 created: 2026-08-08
-updated: 2026-08-08
+updated: 2026-08-11
 sources:
   [
+    src/lib/planner/alternatives.ts,
+    src/lib/planner/alternatives.test.ts,
     src/lib/hevy/catalog.ts,
     src/lib/planner/schema.ts,
-    src/lib/planner/prescription.ts,
+    src/lib/planner/validate.ts,
     src/lib/hevy/sync.ts,
-    src/app/plans/actions.ts,
+    src/app/plans/[id]/swap-actions.ts,
+    src/app/plans/[id]/exercise-swap.tsx,
+    src/app/plans/[id]/rejected-exercises.tsx,
     src/app/plans/[id]/plan-preview.tsx,
   ]
 ---
 
-# Exercise alternatives — swap design
+# Exercise alternatives — the swap feature
 
-> [!important] Designed, decided, NOT implemented
-> Nothing in this page exists in the code yet. It is written down so the
-> implementing session does not have to re-derive it. Owner brief: an exercise
-> the user dislikes should be replaceable from the preview, repeatedly, without
-> ever repeating itself.
+> [!note] BUILT 2026-08-11, to this design
+> This page was written as a design ahead of implementation; the build followed
+> it and the page now describes shipped code. Owner brief was: an exercise the
+> user dislikes should be replaceable from the preview, repeatedly, without ever
+> repeating itself. What actually shipped, and the two places it deviates, are
+> in [[#What shipped]] at the foot of the page. **Not yet exercised by a human
+> against a real plan** — 133 unit tests cover the pure half and the pool query;
+> nobody has clicked it.
 
 This fills in the half of "Edit scope: minimal-plus — swap-exercise (catalog
 picker)" that [[plan-pipeline]] already closed as a decision. Half the
@@ -59,10 +66,12 @@ Options merely browsed past are **not** recorded. Scrolling past an exercise is
 not a verdict on it, and treating it as one would starve the pool within a few
 sessions.
 
-> [!warning] Known gap in this decision
-> There is no UI to view or clear `excludedExercises`. Once something is
-> swapped out it cannot come back. Worth adding a "rejected exercises" list to
-> the plan page in the same pass, or the first accidental swap is permanent.
+> [!note] Gap closed in the build
+> The design flagged that nothing could view or clear `excludedExercises`, so
+> the first accidental swap would be permanent. `rejected-exercises.tsx` ships
+> the list with a per-row Restore and a Clear all, in the same pass. Restoring
+> returns an exercise to the candidate POOL; it deliberately does not put it
+> back into the plan, which would undo a swap the user may since have built on.
 
 Exclusions are **per plan, not global**. Promoting them to a global preference
 later is easy; the reverse is not.
@@ -131,6 +140,36 @@ unfillable-day error gains a clause naming exclusions as a possible cause.
 Concurrency: the read-modify-write runs inside `withPlanLock`, with an
 `expectedTemplateId` check so a second tab gets a clean refusal instead of a
 silent clobber.
+
+## What shipped
+
+Matching the design: `alternatives.ts` (pure — ranking, `substitute`,
+`applySwap`), `excludedExercises` on `planRequestSchema` (JSON column, **no
+migration**), `excludeIds` on `getCandidates`, the rejection rule in
+`validatePlan`, the exclusions clause on the unfillable-day error, two actions
+in `swap-actions.ts` under `withPlanLock` with the `expectedTemplateId` check
+and an `getTemplateById` re-verification of the client's id, and the inline
+`exercise-swap.tsx` island taking only scalars so `plan-preview.tsx` stays a
+server component.
+
+The session-length claim is held down by a test rather than asserted: a swap
+across movement classes is checked to leave `sessionSeconds` on every day
+byte-identical, which is what makes "a swap can never create a ±20% violation"
+true by construction.
+
+Two deviations, both small:
+
+- **Page size is 5, pool size 40** (the design said "~30 rows"). One query per
+  picker-open still; the pool is simply the same `getCandidates` limit the
+  generator uses.
+- **The rejection cap is enforced, not silently truncated.** At 100 rejections
+  the action refuses with a message pointing at the Restore list, rather than
+  dropping the oldest — which would quietly resurrect an exercise the user had
+  rejected, the exact failure the whole feature exists to prevent.
+
+Third-party styling note: the picker needed a third stylesheet
+(`src/app/ui-swap.css`), because `ui-controls.css` is at the 300-line file cap
+([[ui-design-system]]).
 
 ## Rejected
 

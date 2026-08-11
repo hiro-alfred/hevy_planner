@@ -81,6 +81,18 @@ export const planRequestSchema = z.object({
   // around, not one preference among many in a paragraph.
   injuries: z.string().max(200).optional(),
   notes: z.string().max(500).optional(),
+
+  // Exercise template ids the trainee has swapped away from on this plan.
+  //
+  // This lives in the REQUEST, not in the plan document, and that placement is
+  // the whole point: the request is what regeneratePlanAction re-reads, while
+  // savePlan overwrites the plan wholesale. A rejection stored in the plan would
+  // be vaporised by the next regenerate — reintroducing precisely the exercise
+  // the user rejected, which is the failure this field exists to prevent.
+  //
+  // Per plan rather than global: promoting these to a standing preference later
+  // is easy, and the reverse is not.
+  excludedExercises: z.array(z.string()).max(100).optional(),
 });
 
 export type SetType = z.infer<typeof setTypeSchema>;

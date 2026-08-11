@@ -16,14 +16,27 @@ latest state. History belongs in [[log]] — this page holds only the CURRENT st
 Keep the four sections below; they are the template.
 
 ## Active task
-Nothing in flight. The last session was console triage against the running dev
-server: one real fix (`allowedDevOrigins` for LAN access, [[deployment]]) and one
-non-bug (a hydration warning caused entirely by a browser extension,
-[[ui-design-system]]). Committed on `dev`. The three unproven paths below are
-unchanged — LLM generation and the first live Hevy write both still need the owner,
-and the boot-migration retry still has not fired.
+Nothing in flight. The session built [[exercise-alternatives]] (the swap
+feature, previously designed-not-built) and compacted the LLM prompt and output
+shape for latency ([[plan-generation]]). Both landed green; neither has been
+exercised by a human — the swap has never been clicked, and the prompt work
+cannot be timed without an `LLM_API_KEY`.
+
+**An open decision is waiting on the owner**: a review of the intake parameter
+set ([[trainee-profile]]) recommends CUTTING `age`, reshaping `targetWeightKg`
+into an asked-for `phase` enum, and adding an explicit `goalKind` override.
+Nothing was changed — it overturns recorded decisions, so it is the owner's
+call. The review also found a live bug worth fixing either way: the plan form's
+own default goal text, "Build muscle and get stronger", matches the STRENGTH
+regex in `classifyGoal` before the hypertrophy one, so an untouched form
+generates a 3–6 rep / 180 s strength plan while saying "Build muscle".
 
 ## State reached
+- **The exercise swap is built** ([[exercise-alternatives]]) and the LLM prompt
+  is compacted ([[plan-generation]]). Lint, `tsc`, 133 vitest tests (up from
+  103), 14 wiki tests and `next build` green. Neither is human-verified: the
+  picker has never been clicked, and the latency claim rests on measured token
+  counts, not a timed generation.
 - **The dev server is reachable from the LAN.** `next dev` 403s `/_next/*` and the
   HMR upgrade for any origin but its own host, so `next.config.ts` now carries
   `allowedDevOrigins: ["192.168.0.*"]`. Verified by re-requesting a dev asset with
@@ -92,6 +105,10 @@ app's fault ([[ui-design-system]]).
 > cannot already exist in it.
 
 ## Next steps
+0. **Owner decides on the intake-parameter review** (see Active task) — and
+   separately, fix the `classifyGoal` default-text bug, which is a bug on any
+   reading. Whatever is adopted, [[trainee-profile]] needs updating in the same
+   pass or it goes stale.
 1. **Owner fixes `DATABASE_URL` in `.env`** so `npm run dev` boots against the
    real database again.
 2. **Owner adds `LLM_API_KEY=<deepseek key>` to `.env`**, restart, generate one

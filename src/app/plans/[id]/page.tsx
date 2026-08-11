@@ -10,6 +10,7 @@ import { collectTemplateIds, validatePlan } from "@/lib/planner/validate";
 import { getHevyKeyStatus } from "@/lib/settings";
 import { deletePlanAction, regeneratePlanAction, syncPlanAction } from "../actions";
 import { PlanPreview } from "./plan-preview";
+import { RejectedExercises } from "./rejected-exercises";
 
 export const metadata: Metadata = {
   title: "Plan — Hevy Planner",
@@ -111,7 +112,9 @@ export default async function PlanPage({ params, searchParams }: PageProps<"/pla
             <p className="text-sm leading-relaxed">{plan.progression}</p>
           </Card>
 
-          <PlanPreview plan={plan} />
+          <PlanPreview plan={plan} planId={planId} />
+
+          <RejectedExercises planId={planId} excluded={row.request.excludedExercises ?? []} />
 
           <Card
             title="Sync to Hevy"

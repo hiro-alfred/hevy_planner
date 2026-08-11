@@ -2,10 +2,11 @@ import "server-only";
 import { generateObject } from "ai";
 import { UserFacingError } from "@/lib/errors";
 import { getCandidates, getTemplatesByIds, type CatalogRow } from "@/lib/hevy/catalog";
-import { buildPrompt, buildRetryPrompt, SYSTEM_PROMPT } from "./prompt";
+import { expandPlan, llmPlanSchema } from "./llm-plan";
+import { buildPrompt, buildRetryPrompt, candidateIndex, SYSTEM_PROMPT } from "./prompt";
 import { getLlmConfig, resolveModel } from "./provider";
 import { buildRuleBasedPlan, type DayCandidates } from "./rules";
-import { planSchema, type Plan, type PlanRequest } from "./schema";
+import type { Plan, PlanRequest } from "./schema";
 import { buildTrainingDays } from "./split";
 import { collectTemplateIds, validatePlan } from "./validate";
 
@@ -55,6 +56,10 @@ async function loadDayCandidates(request: PlanRequest): Promise<DayCandidates[]>
         // emphasis instruction would have nothing to act on. Keeping the two
         // apart means a Legs day can offer a curl without being retitled.
         muscleGroups: [...new Set([...template.muscleGroups, ...focus])],
+        // Rejected exercises never reach the model or the rule-based generator.
+        // validatePlan re-checks anyway: filtering the pool is what makes the
+        // right answer easy, the validator is what makes the wrong one visible.
+        excludeIds: request.excludedExercises ?? [],
         limit: CANDIDATES_PER_DAY,
       }),
     })),
@@ -63,24 +68,6 @@ async function loadDayCandidates(request: PlanRequest): Promise<DayCandidates[]>
 
 async function resolveCatalog(plan: Plan): Promise<Map<string, CatalogRow>> {
   return getTemplatesByIds(collectTemplateIds(plan));
-}
-
-/**
- * Names in a generated plan are whatever the model wrote; the catalog is the
- * authority. Re-labelling here keeps the preview honest even when the model
- * paraphrases an exercise title.
- */
-function relabel(plan: Plan, catalog: Map<string, CatalogRow>): Plan {
-  return {
-    ...plan,
-    days: plan.days.map((day) => ({
-      ...day,
-      exercises: day.exercises.map((exercise) => ({
-        ...exercise,
-        name: catalog.get(exercise.exerciseTemplateId)?.title ?? exercise.name,
-      })),
-    })),
-  };
 }
 
 async function generateWithLlm(
@@ -92,11 +79,16 @@ async function generateWithLlm(
   const { model, providerOptions } = await resolveModel(config);
 
   const basePrompt = buildPrompt(request, days);
+  // The prompt labels each candidate with a small integer; this maps the
+  // model's answers back to catalog rows. Built from the same day list, so the
+  // two cannot disagree.
+  const byNumber = candidateIndex(days);
+
   let prompt = basePrompt;
   let last: { plan: Plan; violations: string[] } | null = null;
 
   // One retry with the violations appended, then stop. A third attempt costs
-  // another 30-60s and rarely fixes what two could not.
+  // another full generation and rarely fixes what two could not.
   //
   // On DeepSeek this runs as json_object mode with the schema described in a
   // system message, NOT strict json_schema — @ai-sdk/deepseek does not set
@@ -107,16 +99,33 @@ async function generateWithLlm(
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const { object } = await generateObject({
       model,
-      schema: planSchema,
+      // The compact shape, not the internal plan model — see llm-plan.ts. Sets
+      // collapse to a count and exercises to an index, which is most of why a
+      // generation is not measured in minutes any more.
+      schema: llmPlanSchema,
       system: SYSTEM_PROMPT,
       prompt,
-      maxOutputTokens: 16000,
+      // Ample for the compact shape: a six-day plan lands near 2k. Generous
+      // rather than tight because a truncated response is not a shorter plan,
+      // it is a parse failure that costs the whole call.
+      maxOutputTokens: 6000,
       ...(providerOptions ? { providerOptions } : {}),
     });
 
-    const catalog = await resolveCatalog(object);
-    const plan = relabel(object, catalog);
+    const { plan, unknownNumbers } = expandPlan(object, byNumber);
+    const catalog = await resolveCatalog(plan);
     const violations = validatePlan(plan, request, catalog);
+
+    // Reported in the model's own vocabulary. The dropped exercises also make
+    // their day too short, which the length check catches — but "day 2 is 18
+    // minutes" is not a fixable instruction, and "37 is not on the list" is.
+    if (unknownNumbers.length > 0) {
+      violations.unshift(
+        `These numbers are not on any candidate list and were discarded: ${unknownNumbers.join(", ")}. ` +
+          `Use only the numbers shown for each day.`,
+      );
+    }
+
     if (violations.length === 0) return { plan, violations };
 
     last = { plan, violations };
@@ -144,9 +153,17 @@ export async function generatePlan(request: PlanRequest): Promise<GenerateResult
   const unfillable = days.filter((day) => day.candidates.length === 0);
   if (unfillable.length > 0) {
     const titles = unfillable.map((day) => day.template.title).join(", ");
+    const rejected = request.excludedExercises?.length ?? 0;
     throw new UserFacingError(
       `No exercises in the catalog match ${unfillable.length === days.length ? "this request" : `these training days: ${titles}`}. ` +
-        `Widen the equipment selection, or refresh the exercise catalog on the settings page.`,
+        `Widen the equipment selection, or refresh the exercise catalog on the settings page.` +
+        // Naming exclusions matters because they are invisible from the form:
+        // someone who swapped their way through a small pool would otherwise
+        // read this as a catalog fault and go refresh it to no effect.
+        (rejected > 0
+          ? ` You have also rejected ${rejected} exercise${rejected === 1 ? "" : "s"} on this plan; ` +
+            `clearing some of those on the plan page would widen the pool.`
+          : ""),
     );
   }
 

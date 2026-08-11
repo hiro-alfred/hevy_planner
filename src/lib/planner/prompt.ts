@@ -14,33 +14,69 @@ import type { TrainingDayTemplate } from "./split";
 // Prompt construction for LLM plan generation. Kept apart from the generation
 // loop so the wording can be tuned without touching the retry/validation logic.
 
-export const SYSTEM_PROMPT = `You are an experienced strength coach writing a training plan that will be pushed into the Hevy app.
+// Every line here is paid for on every generation, so each one has to earn its
+// place. The rules kept below are the ones with a demonstrated effect on output;
+// the wording is compressed, but no RULE was dropped — in particular the injury
+// block, which was verified against a real generation and is the only thing
+// standing between a reported complaint and a plan that loads it.
+export const SYSTEM_PROMPT = `You are an experienced strength coach writing a training plan for the Hevy app. Return only the requested JSON.
 
-Rules you must follow:
-- Use ONLY exercises from the candidate list you are given, and copy their id exactly. Never invent an id or use an exercise that is not listed.
+Rules:
+- Pick exercises ONLY by the number they are listed under. Never invent a number or use one that is not listed for that day.
 - Produce exactly the number of training days requested, in a sensible weekly order.
-- Every set uses a rep range. Give the same rep range across an exercise's working sets.
-- Rest is per exercise, in seconds, not per set.
-- Order each day compounds first, then accessories.
-- The progression field is one short paragraph telling the trainee how to add load or reps over the coming weeks.
+- Order each day compounds first, then accessories, covering the day's muscle groups without redundant overlap.
+- "sets" is the count of working sets; repStart/repEnd is the rep range they all share; "rest" is per exercise, in seconds.
+- "progression" is one short paragraph on adding load or reps over the coming weeks.
 
 Starting weights:
-- If the trainee's current working weights are given, suggest a weightKg for the main barbell and dumbbell work, extrapolating accessory loads from those anchors. Err light — a weight that is too easy costs one set, a weight that is too heavy costs an injury.
-- If they are NOT given, leave weightKg null. A guessed starting weight is worse than an empty field.
+- If the trainee's working weights are given, set weightKg for the main barbell and dumbbell work and extrapolate accessory loads from those anchors. Err light — too easy costs one set, too heavy costs an injury.
+- If they are not given, omit weightKg. A guessed starting weight is worse than an empty field.
 
-Injuries and problem areas, when the trainee reports any:
-- Treat the affected movement patterns as HARD EXCLUSIONS. Substitute a tolerable alternative from the candidate list rather than dropping the muscle group.
-- Raise the rep floor on anything that loads the affected area — no low-rep heavy work through a complaint.
-- Put a short, practical caution in that exercise's notes field.
-- Stay in your lane: you route training AROUND a reported problem. You do not diagnose it, name it, or prescribe rehab for it.
+Injuries and problem areas, when reported:
+- Treat the affected movement patterns as HARD EXCLUSIONS. Substitute a tolerable listed alternative rather than dropping the muscle group.
+- Raise the rep floor on anything loading the affected area — no low-rep heavy work through a complaint.
+- Put a short, practical caution in that exercise's "notes".
+- Stay in your lane: you route training AROUND a problem. You do not diagnose it, name it, or prescribe rehab.
 
-Anything the trainee writes in their own words is context, not decoration. Exclusions and dislikes stated there are constraints, not suggestions — a plan someone abandons is worth nothing.
+What the trainee writes in their own words is context, not decoration: exclusions and dislikes stated there are constraints. A plan someone abandons is worth nothing.
 
-Write for a real person: exercise selection should cover the day's muscle groups without redundant overlap.`;
+Omit "notes" and "weightKg" entirely when you have nothing to put in them.`;
 
-function describeCandidate(row: CatalogRow): string {
+/**
+ * Numbers every candidate once, across the whole prompt.
+ *
+ * One shared numbering rather than per-day numbering, because days overlap
+ * heavily — an upper/lower split draws Upper A and Upper B from the same pool —
+ * and a stable number per exercise is what lets a repeated day say "the same
+ * candidates as Day 1" instead of restating forty lines.
+ */
+function numberCandidates(days: PromptDay[]): Map<string, number> {
+  const numbers = new Map<string, number>();
+  for (const day of days) {
+    for (const row of day.candidates) {
+      if (!numbers.has(row.id)) numbers.set(row.id, numbers.size + 1);
+    }
+  }
+  return numbers;
+}
+
+/** The reverse lookup generation needs to turn the model's numbers back into ids. */
+export function candidateIndex(days: PromptDay[]): Map<number, CatalogRow> {
+  const numbers = numberCandidates(days);
+  const byNumber = new Map<number, CatalogRow>();
+  for (const day of days) {
+    for (const row of day.candidates) {
+      byNumber.set(numbers.get(row.id)!, row);
+    }
+  }
+  return byNumber;
+}
+
+function describeCandidate(row: CatalogRow, number: number): string {
   const equipment = EQUIPMENT_LABELS[row.equipmentCategory as EquipmentCategory] ?? row.equipmentCategory;
-  return `${row.id} — ${row.title} (${row.primaryMuscleGroup}, ${equipment})`;
+  // The UUID is deliberately absent: it is ~20 tokens per line and the model
+  // never needs to see it. `candidateIndex` maps the number back afterwards.
+  return `${number} ${row.title} (${row.primaryMuscleGroup}, ${equipment})`;
 }
 
 export interface PromptDay {
@@ -112,16 +148,36 @@ function constraintLines(request: PlanRequest): string[] {
 export function buildPrompt(request: PlanRequest, days: PromptDay[]): string {
   const prescription = prescribe(request);
   const volume = planVolume(request, prescription);
+  const numbers = numberCandidates(days);
+
+  // Days that draw on exactly the same candidates point at the first of them
+  // rather than repeating the list. On a 4-day upper/lower this halves the
+  // largest block in the prompt, and on a 6-day PPL it cuts it to a third —
+  // without weakening the per-day association, which is what tells the model
+  // which exercises belong to which session.
+  const seen = new Map<string, number>();
 
   const dayBlocks = days
     .map((day, index) => {
-      const lines = day.candidates.map(describeCandidate).join("\n");
-      return [
+      const head = [
         `### Day ${index + 1}: ${day.template.title}`,
-        `Target muscle groups: ${day.template.muscleGroups.join(", ")}`,
-        `Candidate exercises:`,
-        lines || "(none available — say so in the plan rather than inventing exercises)",
-      ].join("\n");
+        `Target: ${day.template.muscleGroups.join(", ")}`,
+      ];
+      if (day.candidates.length === 0) {
+        return [...head, "(none available — say so in the plan rather than inventing exercises)"].join("\n");
+      }
+
+      const key = day.candidates.map((row) => row.id).join(",");
+      const earlier = seen.get(key);
+      if (earlier !== undefined) {
+        return [...head, `Choose from the same exercises as Day ${earlier}.`].join("\n");
+      }
+      seen.set(key, index + 1);
+
+      const lines = day.candidates
+        .map((row) => describeCandidate(row, numbers.get(row.id)!))
+        .join("\n");
+      return [...head, "Choose from:", lines].join("\n");
     })
     .join("\n\n");
 
@@ -149,15 +205,25 @@ export function buildPrompt(request: PlanRequest, days: PromptDay[]): string {
     `- Roughly ${volume.exerciseCount} exercises per day`,
     ``,
     `## Session length check`,
-    `A session is scored as: sum over every set of (${SECONDS_PER_SET}s of work + that exercise's rest).`,
-    `The result must land within 20% of ${request.sessionMinutes} minutes for every day.`,
+    // Stated as the arithmetic the validator actually runs, in the same
+    // vocabulary the output uses, so the model can check its own work before
+    // spending a second call on a retry.
+    `Each exercise costs sets x (${SECONDS_PER_SET}s + rest). Every day's total must land within 20% of ${request.sessionMinutes} minutes.`,
     ``,
-    `## Training days and their candidate exercises`,
+    `## Training days`,
     dayBlocks,
   ].join("\n");
 }
 
-/** Appends the validator's complaints for the single retry attempt. */
+/**
+ * Appends the validator's complaints for the single retry attempt.
+ *
+ * The violations go on the END of the unchanged base prompt, and that ordering
+ * is worth keeping: DeepSeek caches on a request's leading tokens, so an
+ * identical prefix means the retry re-reads the candidate lists off cache rather
+ * than paying for them twice. Rebuilding the prompt with the complaints near the
+ * top would read better and cost a full second pass.
+ */
 export function buildRetryPrompt(prompt: string, violations: string[]): string {
   return [
     prompt,

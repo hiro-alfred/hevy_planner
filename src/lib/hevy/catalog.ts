@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, notInArray, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { exerciseTemplates } from "@/lib/db/schema";
 import { UserFacingError } from "@/lib/errors";
@@ -181,6 +181,8 @@ export interface CandidateFilter {
   muscleGroups?: string[];
   /** Include duration/distance templates too. Default false. */
   includeNonRepBased?: boolean;
+  /** Template ids to leave out: already on the day, or rejected on this plan. */
+  excludeIds?: string[];
   /** Cap on returned rows; the prompt targets ~100–150 candidates. */
   limit?: number;
 }
@@ -217,11 +219,20 @@ function secondaryMuscleMatch(muscleGroups: string[]): SQL {
  * arbitrary slice.
  */
 export async function getCandidates(filter: CandidateFilter = {}): Promise<CatalogRow[]> {
-  const { equipment = [], muscleGroups = [], includeNonRepBased = false, limit = 150 } = filter;
+  const {
+    equipment = [],
+    muscleGroups = [],
+    includeNonRepBased = false,
+    excludeIds = [],
+    limit = 150,
+  } = filter;
 
   const conditions: SQL[] = [];
   if (equipment.length > 0) {
     conditions.push(inArray(exerciseTemplates.equipmentCategory, equipment));
+  }
+  if (excludeIds.length > 0) {
+    conditions.push(notInArray(exerciseTemplates.id, excludeIds));
   }
   if (muscleGroups.length > 0) {
     conditions.push(

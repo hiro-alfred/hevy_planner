@@ -119,6 +119,40 @@ export async function savePlan(id: number, plan: Plan): Promise<void> {
     .where(eq(plans.id, id));
 }
 
+/**
+ * Writes an edited plan together with the request that now describes it.
+ *
+ * One statement, not a savePlan + a second update: an exercise swap changes the
+ * plan AND appends to the request's rejection list, and a crash between two
+ * writes would leave a plan whose rejected exercise is still in it, or a
+ * rejection for an exercise the plan no longer has.
+ *
+ * Status stays "generated" for the same reason savePlan sets it: the plan no
+ * longer matches what is in Hevy, and the dashboard derives its label from
+ * content hashes regardless.
+ */
+export async function savePlanEdit(id: number, plan: Plan, request: PlanRequest): Promise<void> {
+  await db
+    .update(plans)
+    .set({ plan, request, status: "generated", updatedAt: new Date().toISOString() })
+    .where(eq(plans.id, id));
+}
+
+/**
+ * Writes the request alone, leaving the plan and its status untouched.
+ *
+ * Clearing a rejected exercise changes what the NEXT generation may choose; it
+ * does not change the plan on screen, so it must not mark the plan edited or —
+ * on a draft, where `plan` is still null — write a null plan back under a
+ * "generated" status.
+ */
+export async function saveRequest(id: number, request: PlanRequest): Promise<void> {
+  await db
+    .update(plans)
+    .set({ request, updatedAt: new Date().toISOString() })
+    .where(eq(plans.id, id));
+}
+
 export async function markSynced(id: number): Promise<void> {
   await db
     .update(plans)

@@ -68,5 +68,5 @@ category. Start here; conventions live in [[schema]].
   traps (drizzle's `json()` does not round-trip on MariaDB), verification status.
 - [[wiki-bootstrap]] — choices made at vault creation: categories, re-authored
   skills, thin bootstrap.
-- [[exercise-alternatives]] — DESIGNED, NOT BUILT: repeatable catalog-sourced
-  exercise swap, per-plan rejections, and why sync stays safe.
+- [[exercise-alternatives]] — the repeatable catalog-sourced exercise swap,
+  per-plan rejections, and why sync stays safe. BUILT 2026-08-11.

@@ -55,7 +55,26 @@ export function validatePlan(
     }
   });
 
-  // 4. Rep ranges must be the right way round — Hevy accepts start > end and
+  // 4. Exercises the trainee has already rejected on this plan must not come
+  //    back. Candidate lists already omit them, so the model has to go out of
+  //    its way to reach one — but in json_object mode id compliance is only ever
+  //    REQUESTED, never enforced, so the validator is the actual barrier. A
+  //    regenerate that quietly restored a swapped-away exercise would make the
+  //    swap feature look broken in the one place it is meant to hold.
+  const excluded = new Set(request.excludedExercises ?? []);
+  if (excluded.size > 0) {
+    const reintroduced = [...new Set(collectTemplateIds(plan))].filter((id) => excluded.has(id));
+    if (reintroduced.length > 0) {
+      violations.push(
+        `The trainee has rejected these exercises and they must not appear in the plan — ` +
+          `choose different ids from the candidate lists: ${reintroduced
+            .map((id) => catalog.get(id)?.title ?? id)
+            .join(", ")}.`,
+      );
+    }
+  }
+
+  // 5. Rep ranges must be the right way round — Hevy accepts start > end and
   //    then renders nonsense.
   plan.days.forEach((day, dayIndex) => {
     day.exercises.forEach((exercise) => {

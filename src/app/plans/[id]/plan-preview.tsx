@@ -1,8 +1,13 @@
 import { exerciseSeconds } from "@/lib/planner/prescription";
 import type { Plan, PlanExercise } from "@/lib/planner/schema";
+import { ExerciseSwap } from "./exercise-swap";
 
-// Read-only rendering of a generated plan. Phase 1 is preview + sync; the
-// minimal-plus editor (swap exercise, tweak sets/reps/rest) comes later.
+// Rendering of a generated plan. Read-only except for the per-exercise swap,
+// which is the first slice of the minimal-plus editor; tweaking sets/reps/rest
+// is still to come.
+//
+// This stays a SERVER component — the swap picker is the only client code, and
+// it takes scalars so the plan document itself never crosses the boundary.
 
 function describeSets(exercise: PlanExercise): string {
   const first = exercise.sets[0]!;
@@ -27,7 +32,7 @@ function dayMinutes(exercises: PlanExercise[]): string {
   return minutes(total);
 }
 
-export function PlanPreview({ plan }: { plan: Plan }) {
+export function PlanPreview({ plan, planId }: { plan: Plan; planId: number }) {
   return (
     <div className="flex flex-col gap-4">
       {plan.days.map((day, index) => (
@@ -54,8 +59,17 @@ export function PlanPreview({ plan }: { plan: Plan }) {
                   </span>
                   {exercise.name}
                 </span>
-                <span className="ui-mono text-xs text-ui-faint">
-                  {describeSets(exercise)} · {exercise.restSeconds}s rest
+                <span className="flex items-baseline gap-3.5">
+                  <span className="ui-mono text-xs text-ui-faint">
+                    {describeSets(exercise)} · {exercise.restSeconds}s rest
+                  </span>
+                  <ExerciseSwap
+                    planId={planId}
+                    dayIndex={index}
+                    exerciseIndex={exerciseIndex}
+                    templateId={exercise.exerciseTemplateId}
+                    name={exercise.name}
+                  />
                 </span>
               </li>
             ))}
