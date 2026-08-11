@@ -29,9 +29,10 @@ sources:
 > it and the page now describes shipped code. Owner brief was: an exercise the
 > user dislikes should be replaceable from the preview, repeatedly, without ever
 > repeating itself. What actually shipped, and the two places it deviates, are
-> in [[#What shipped]] at the foot of the page. **Not yet exercised by a human
-> against a real plan** — unit tests cover the pure half and the pool query;
-> nobody has clicked it.
+> in [[#What shipped]] at the foot of the page. **The picker has now been opened
+> and paged in a real browser** against the real 452-template catalog — see
+> [[#Verified in the browser]] — which had never happened for any interactive
+> part of this app before 2026-08-11.
 
 This fills in the half of "Edit scope: minimal-plus — swap-exercise (catalog
 picker)" that [[plan-pipeline]] already closed as a decision. Half the
@@ -236,6 +237,29 @@ like the rest of the swap's arithmetic) plus a third field on `Alternative`:
 `caveat`, the one sentence a weak option carries into the picker. Twelve tests
 cover it, including both redundancy cases stated as their own assertions. Still
 unclicked by a human, like everything else here.
+
+## Verified in the browser
+
+2026-08-11, with `scripts/cdp-drive.mjs` (see [[hot]]) against the throwaway
+database and the real 452-template catalog. A machine-only push day was seeded:
+**Seated Chest Flys (Cable)** — the exercise being replaced, carrying no
+secondaries — plus **Triceps Extension (Cable)** and **Seated Triceps Press**,
+three working sets each. That leaves six weighted triceps sets on the day before
+the swap even happens, and chest resting on one movement.
+
+The picker opened and paged to the end produced exactly the designed order:
+
+| Rank | Options | Caveat |
+| ---- | ------- | ------ |
+| 1–5 | Butterfly (Pec Deck), Cable Fly Crossovers, Chest Fly (Machine), Low Cable Fly Crossovers, Single Arm Cable Crossover | none — they give the chest work back and add nothing to the triceps |
+| 6–16 | every press and dip: Bench Press (Cable), Bench Press (Smith Machine), Chest Dip ×3, Chest Press (Machine), Decline ×2, Incline ×2, Iso-Lateral | "This day already has plenty of triceps" |
+| 17–22 | Cable Core Pallof Press, Pullover (Machine), Seated Dip Machine, Triceps Dip ×3 | "Leaves this day short on chest" |
+
+That is the whole feature in one screen. **A barbell-equivalent day would rank
+the presses first**, because the old ordering broke ties on equipment and every
+one of those presses matches — and it would have put a triceps dip mid-list
+rather than last. The three tiers are the two failure modes and their absence,
+in the order the design claims.
 
 ## Rejected
 

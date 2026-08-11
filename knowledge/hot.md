@@ -51,11 +51,11 @@ Also this round: the **swap picker now ranks against the DAY**
 work the day was giving it nor pile onto one the day already hammers; and
 `validatePlan` gained the generation-time half of the same rule.
 
-**What was actually run**: the rebuilt plan form was screenshotted against the
-throwaway DB (age and target weight gone, phase and rep-range selects in place),
-and the lopsided-day rule was verified BOTH directions on the real 452-template
-catalog with a hand-seeded push day. Not run: the swap picker's new caveat line,
-which needs a click no tool here can perform.
+**What was actually run**: all of it, in a real browser, against the throwaway DB
+and the real 452-template catalog. The rebuilt plan form (age and target weight
+gone, phase and rep-range selects in place); the lopsided-day rule BOTH
+directions; and — via the new CDP driver below — **the swap picker itself,
+opened and paged**, which nothing in this project had ever done.
 
 ## State reached
 - **Records, the history cache and the progression engine are built and run.**
@@ -120,12 +120,23 @@ session shell is not admin, but `Start-Process -Verb RunAs` works and prompts UA
 Bitdefender's browser extension injects attributes into the DOM — expect hydration
 warnings that are not the app's fault ([[ui-design-system]]).
 
-**Screenshots**: no browser extension and no Playwright here. The working tool is
+**Screenshots**: no Playwright here, and Claude for Chrome is a browser-side
+product this session cannot reach. For a static page the tool is
 `chrome --headless --disable-gpu --screenshot=… --window-size=W,H` from
 `C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`, plus
 `--force-prefers-reduced-motion` — without it the capture freezes mid-reveal with
 every stat counter still reading 0. The `--screenshot=` path must be a **Windows**
 path; a Git-Bash `/c/...` path fails with "Access is denied".
+
+**Clicking is solved** (2026-08-11). `scripts/cdp-drive.mjs` drives the same
+installed Chrome over the DevTools Protocol with **no new dependency** — Node
+22.18 ships a global `WebSocket`, so a ~60-line script is a complete driver.
+Launch Chrome with `--remote-debugging-port=9222 --user-data-dir=<scratch>`, then
+`node scripts/cdp-drive.mjs <url> "Swap|More alternatives" <out.png> [selector]`.
+Clicks match visible-text PREFIX, and the selector dump makes a run readable in
+the terminal rather than only in the PNG. **The long-standing "nothing here is
+human-verified" gap is now a choice, not a limitation** — anything behind a click
+can be exercised.
 
 > [!warning] `.env` must never be read (CLAUDE.md)
 > Append new keys rather than rewriting the file, and only with names that
@@ -142,8 +153,8 @@ path; a Git-Bash `/c/...` path fails with "Access is denied".
 4. **Sync one 2-day plan to Hevy.** First write to the live account; irreversible.
 5. Consider feeding records back into generation — `rules.ts` still leaves starting
    loads blank on the now-obsolete grounds that "the app has no lifting history yet".
-5a. **Click the swap picker once.** Its new caveat line ("Leaves shoulders untrained
-   on this day") has never been rendered — opening the picker needs a click and
-   there is no browser driver here, so headless Chrome cannot reach it.
+5a. **Use `scripts/cdp-drive.mjs` on the rest of the interactive UI.** The swap
+   picker is now verified; the per-exercise Edit form, the rejected-exercises
+   Restore/Clear list and the sync buttons have still never been clicked.
 6. Decide what to do with the compose stack (`docker compose down [-v]`), pick the
    VPS, add a `mysqldump` backup cron, and ask about deleting `data/`.
