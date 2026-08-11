@@ -126,6 +126,74 @@ describe("getLastSessions", () => {
   });
 });
 
+describe("getRecentSessions", () => {
+  it("returns the newest sessions per exercise, newest first, and stops at the limit", async () => {
+    await seed("w1", "2026-06-01T09:00:00Z", [{ weightKg: 80, reps: 8 }]);
+    await seed("w2", "2026-07-01T09:00:00Z", [{ weightKg: 90, reps: 8 }]);
+    await seed("w3", "2026-08-01T09:00:00Z", [{ weightKg: 100, reps: 8 }]);
+    await seed("w4", "2026-08-08T09:00:00Z", [{ weightKg: 105, reps: 8 }]);
+
+    const sessions = (await lastSession.getRecentSessions(["bench"], 3)).get("bench")!;
+
+    // The cut lands between sessions, not inside one: the oldest workout is
+    // gone whole rather than contributing a stray set.
+    expect(sessions.map((s) => s.workoutId)).toEqual(["w4", "w3", "w2"]);
+    expect(sessions[0]!.sets).toEqual([{ weightKg: 105, reps: 8, rpe: null }]);
+  });
+
+  it("keeps each exercise's sets in set order within its own session", async () => {
+    await seed("w1", "2026-08-01T09:00:00Z", [
+      { weightKg: 100, reps: 8 },
+      { weightKg: 100, reps: 7 },
+      { weightKg: 100, reps: 6 },
+    ]);
+
+    const sessions = (await lastSession.getRecentSessions(["bench"])).get("bench")!;
+    expect(sessions[0]!.sets.map((set) => set.reps)).toEqual([8, 7, 6]);
+  });
+
+  it("ranks each exercise separately, so a rare lift keeps its whole window", async () => {
+    // Bench three times, squat once, all interleaved. A global rank would drop
+    // the squat off the end of the list; a per-exercise one cannot.
+    await seed("w1", "2026-08-01T09:00:00Z", [
+      { templateId: "bench", weightKg: 100, reps: 8 },
+      { templateId: "squat", weightKg: 140, reps: 5 },
+    ]);
+    await seed("w2", "2026-08-04T09:00:00Z", [{ templateId: "bench", weightKg: 102, reps: 8 }]);
+    await seed("w3", "2026-08-07T09:00:00Z", [{ templateId: "bench", weightKg: 104, reps: 8 }]);
+    await seed("w4", "2026-08-09T09:00:00Z", [{ templateId: "bench", weightKg: 106, reps: 8 }]);
+
+    const sessions = await lastSession.getRecentSessions(["bench", "squat", "deadlift"], 3);
+
+    expect(sessions.get("bench")!).toHaveLength(3);
+    expect(sessions.get("squat")!).toHaveLength(1);
+    expect(sessions.has("deadlift")).toBe(false);
+  });
+
+  it("ignores warm-up sets", async () => {
+    await seed("w1", "2026-08-01T09:00:00Z", [
+      { weightKg: 500, reps: 1, type: "warmup" },
+      { weightKg: 100, reps: 5 },
+    ]);
+
+    const sessions = (await lastSession.getRecentSessions(["bench"])).get("bench")!;
+    expect(sessions[0]!.sets).toEqual([{ weightKg: 100, reps: 5, rpe: null }]);
+  });
+
+  it("keeps one session when two workouts share a start time", async () => {
+    await seed("a", "2026-08-01T09:00:00Z", [{ weightKg: 100, reps: 5 }]);
+    await seed("b", "2026-08-01T09:00:00Z", [{ weightKg: 80, reps: 5 }]);
+
+    const sessions = (await lastSession.getRecentSessions(["bench"])).get("bench")!;
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]!.sets).toHaveLength(1);
+  });
+
+  it("asks nothing of the database for an empty list", async () => {
+    expect(await lastSession.getRecentSessions([])).toEqual(new Map());
+  });
+});
+
 describe("getRoutineActivity", () => {
   it("counts the workouts logged against each routine", async () => {
     await seed("w1", "2026-07-01T09:00:00Z", [{ weightKg: 100, reps: 5 }], "routine-a");

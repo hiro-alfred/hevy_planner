@@ -35,6 +35,41 @@ function plan(): Plan {
 
 const edit = { sets: 3, repStart: 6, repEnd: 10, restSeconds: 120 };
 
+describe("applyExerciseEdit weight", () => {
+  it("leaves per-set weights alone when the edit does not mention one", () => {
+    // The three-state rule: an ABSENT key is not "clear it". Every caller that
+    // predates the weight field relies on this.
+    expect(applyExerciseEdit(exercise(), edit).sets.map((set) => set.weightKg)).toEqual([
+      40, 80, 85,
+    ]);
+  });
+
+  it("applies a stated weight to every set", () => {
+    const result = applyExerciseEdit(exercise(), { ...edit, weightKg: 82.5 });
+    expect(result.sets.map((set) => set.weightKg)).toEqual([82.5, 82.5, 82.5]);
+  });
+
+  it("clears every weight when the edit states null", () => {
+    const result = applyExerciseEdit(exercise(), { ...edit, weightKg: null });
+    expect(result.sets.map((set) => set.weightKg)).toEqual([null, null, null]);
+  });
+
+  it("gives a stated weight to sets the edit adds", () => {
+    const result = applyExerciseEdit(exercise(), { ...edit, sets: 5, weightKg: 60 });
+    expect(result.sets).toHaveLength(5);
+    expect(result.sets.every((set) => set.weightKg === 60)).toBe(true);
+  });
+
+  it("refuses a zero or negative weight", () => {
+    // Zero is not "no weight" — null is. Letting 0 through would sync a set
+    // whose load reads as decided at nothing.
+    expect(exerciseEditSchema.safeParse({ ...edit, weightKg: 0 }).success).toBe(false);
+    expect(exerciseEditSchema.safeParse({ ...edit, weightKg: -5 }).success).toBe(false);
+    expect(exerciseEditSchema.safeParse({ ...edit, weightKg: 1001 }).success).toBe(false);
+    expect(exerciseEditSchema.safeParse({ ...edit, weightKg: null }).success).toBe(true);
+  });
+});
+
 describe("applyExerciseEdit", () => {
   it("applies the rep range to every set and the rest to the exercise", () => {
     const result = applyExerciseEdit(exercise(), edit);

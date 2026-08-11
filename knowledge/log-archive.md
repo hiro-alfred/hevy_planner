@@ -120,3 +120,37 @@ Oldest at the top; keep original entry lines verbatim.
   provenance banner survived a regenerate and could describe the previous plan;
   empty equipment meant "anything" while the error text said one was required.
   63 tests. Run complete.
+- 2026-08-08 — **SQLite → MariaDB**, at the owner's request. Merged
+  `worktree-e2e-build` into `dev` first (fast-forward, 8 commits) so the
+  conversion ran once against the full app rather than twice against diverging
+  branches. Rationale, cost, and the full dialect-difference table are in
+  [[mariadb-migration]]; the ops cost (second container, tests now need a
+  server) was raised before starting and the change confirmed anyway. The trap
+  worth remembering: drizzle's mysql `json()` defines no `mapFromDriverValue`
+  and MariaDB reports `JSON` as `LONGTEXT`, so every JSON column would have
+  returned an unparsed string — silently, failing only at the first property
+  access. `src/lib/db/json-column.ts` maps both directions. Four more that a
+  config-only swap would have missed: no `RETURNING`, no `json_each`/
+  `JSON_OVERLAPS`, `escape '\'` does not parse, and `better-sqlite3`'s
+  synchronous transaction had to become async. Migrations squashed to a fresh
+  `0000` (no instance held data; the old `0001` dedup only ever repaired SQLite
+  files). Also fixed eslint linting a nested worktree's `.next/` output as if it
+  were source — 769 phantom errors. Build, lint and generate green; **the
+  DB-backed suites are unrun** (no Docker on this machine), so the translated
+  SQL was verified by compiling it through drizzle's mysql dialect instead.
+- 2026-08-08 — Verified the MariaDB move end to end, and **corrected a claim I
+  got wrong**. Installed MariaDB 12.3.2 natively (no Docker on this box; WSL2
+  has no distro), created `hevy_planner`, ran the suite against it: **63/63**.
+  Boot migration built all four tables plus `__drizzle_migrations` on first
+  request; `/`, `/settings`, `/plans/new` all 200 and a missing id 404s, with a
+  clean server log. The correction: [[mariadb-migration]] asserted that mysql2
+  returns MariaDB JSON columns unparsed, so drizzle's `json()` could not
+  round-trip. Half true. The column IS reported as protocol type 252 (LONGTEXT),
+  not 245 — but mysql2 3.23.2 parses it regardless, via the extended metadata
+  MariaDB 10.5+ sends marking the format as JSON; both text and binary protocols
+  returned an object. `json()` would have worked here. `json-column.ts` stays,
+  now justified as version-independence (older servers and drivers that ignore
+  extended metadata do return the string) rather than as a fix for a live bug.
+  Lesson worth keeping: "the protocol type is wrong" did not imply "the driver
+  gets it wrong" — the vendor shipped a compatibility path I had not accounted
+  for, and only running it showed that. Still untested: the container path.

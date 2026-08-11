@@ -1,8 +1,10 @@
 import "server-only";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lte, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { workouts, workoutSets } from "@/lib/db/schema";
+import type { ExerciseSession } from "./metrics";
 import { WORKING_SET } from "./metrics";
+import { PROGRESSION_WINDOW } from "./progression";
 
 // "What did I do last time?" — answered from the local workout cache.
 //
@@ -10,10 +12,10 @@ import { WORKING_SET } from "./metrics";
 // a list of names: the routine says three sets of 8-12, the cache says the last
 // time you did it you got 100 kg for 8, 8, 7. Neither number means much alone.
 //
-// Both functions here take a LIST of ids and answer for all of them in one
-// round trip, because their only callers render a routine's worth of exercises
-// or an account's worth of routines — the per-item shape would be exactly the
-// N+1 the project rules ban.
+// Every function here takes a LIST of ids and answers for all of them in one
+// round trip, because their callers render a routine's worth of exercises, an
+// account's worth of routines or a week's worth of training days — the per-item
+// shape would be exactly the N+1 the project rules ban.
 
 export interface LastSet {
   weightKg: number | null;
@@ -104,6 +106,91 @@ export async function getLastSessions(templateIds: string[]): Promise<Map<string
   }
 
   return sessions;
+}
+
+/**
+ * The newest few sessions of each given exercise, keyed by template id.
+ *
+ * What `getLastSessions` is to "what did I lift last time", this is to "what
+ * should I lift next time": the progression engine needs a short run of
+ * sessions to see whether the reps are climbing or stuck, and a plan asks that
+ * question for up to seven days of exercises at once.
+ *
+ * ONE query for the whole plan. `dense_rank()` numbers each exercise's sessions
+ * newest-first inside the database and the outer select keeps only the first
+ * few, so a five-year-old squat entry contributes three sessions rather than
+ * three hundred rows fetched and then thrown away in JS. Ranking on the DATE
+ * rather than the workout id is deliberate — every set of one session shares a
+ * rank, which is what makes the cut land between sessions instead of inside one.
+ *
+ * The default depth is the engine's own window, imported rather than restated:
+ * fetching four sessions for rules that read three is waste, and fetching two
+ * would silently disable the stall rule.
+ *
+ * Exercises with no logged history are absent from the map. That is the normal
+ * state for a newly generated plan, not an error.
+ */
+export async function getRecentSessions(
+  templateIds: string[],
+  sessionLimit: number = PROGRESSION_WINDOW,
+): Promise<Map<string, ExerciseSession[]>> {
+  const ids = [...new Set(templateIds)];
+  if (ids.length === 0) return new Map();
+
+  const ranked = db
+    .select({
+      templateId: workoutSets.exerciseTemplateId,
+      workoutId: workoutSets.workoutId,
+      workoutTitle: workouts.title,
+      startTime: workouts.startTime,
+      setIndex: workoutSets.setIndex,
+      weightKg: workoutSets.weightKg,
+      reps: workoutSets.reps,
+      rpe: workoutSets.rpe,
+      sessionRank:
+        sql<number>`dense_rank() over (partition by ${workoutSets.exerciseTemplateId} order by ${workouts.startTime} desc)`.as(
+          "session_rank",
+        ),
+    })
+    .from(workoutSets)
+    .innerJoin(workouts, eq(workouts.id, workoutSets.workoutId))
+    .where(and(inArray(workoutSets.exerciseTemplateId, ids), WORKING_SET))
+    .as("ranked");
+
+  const rows = await db
+    .select()
+    .from(ranked)
+    .where(lte(ranked.sessionRank, sessionLimit))
+    .orderBy(ranked.templateId, desc(ranked.startTime), ranked.setIndex);
+
+  const byTemplate = new Map<string, ExerciseSession[]>();
+  for (const row of rows) {
+    const sessions = byTemplate.get(row.templateId) ?? [];
+    if (sessions.length === 0) byTemplate.set(row.templateId, sessions);
+
+    const open = sessions[sessions.length - 1];
+    if (open?.startTime === row.startTime) {
+      // Two workouts can share a start_time (a duplicated log, or an import),
+      // and both then carry the same rank. The first one wins whole rather than
+      // being merged with the second into a session nobody performed.
+      if (open.workoutId !== row.workoutId) continue;
+    } else {
+      sessions.push({
+        workoutId: row.workoutId,
+        workoutTitle: row.workoutTitle,
+        startTime: row.startTime,
+        sets: [],
+      });
+    }
+
+    sessions[sessions.length - 1]!.sets.push({
+      weightKg: num(row.weightKg),
+      reps: row.reps,
+      rpe: num(row.rpe),
+    });
+  }
+
+  return byTemplate;
 }
 
 export interface RoutineActivity {

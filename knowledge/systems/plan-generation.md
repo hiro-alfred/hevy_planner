@@ -171,6 +171,18 @@ its largest block; a 6-day PPL cuts it to a third), and the retry keeps the base
 prompt as an unchanged PREFIX so DeepSeek's context cache can serve it rather
 than charging for a second pass.
 
+## Starting loads are not generated
+
+Neither generator prefills `weightKg` from the trainee's training history, and that is
+deliberate rather than pending: suggestion happens AFTER generation, on the plan page,
+identically for both paths ([[suggested-loads]]). Putting it in one generator would let
+the same request produce materially different plans depending on whether a key is
+configured, and putting it in the prompt would undo the compaction above so the model
+could do arithmetic worse than `progression.ts` does it.
+
+The LLM path can still set a weight, but only from what the trainee STATED — the
+working-weight anchors below — never from the log.
+
 ## The prompt carries an optional profile
 
 `buildPrompt` appends up to three further sections — about the trainee, the

@@ -1,0 +1,51 @@
+@layer components {
+  /* ---- starting loads under a plan exercise ----------------------------- */
+
+  /* The third line of a .ui-row. That row is `flex-wrap` with the name on the
+   * left and the prescription on the right, so a full-basis child drops onto
+   * its own line beneath both rather than competing for the same baseline. */
+  .ui-load {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.625rem;
+    font-size: 0.78125rem;
+    color: var(--color-ui-dim);
+    /* Indented to clear the two-digit exercise number, so the loads line up
+     * with the exercise names instead of with the row edge. */
+    padding-left: 1.875rem;
+  }
+
+  /* The weight the plan actually holds — the one a sync would write. */
+  .ui-load__weight {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--color-ui-ink);
+  }
+
+  /* What the history suggests. Accented, because it is the only thing on this
+   * line that is an offer rather than a fact. */
+  .ui-load__hint {
+    color: var(--color-ui-accent);
+  }
+
+  .ui-load__hint b {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+
+  /* A suggestion earned in a rep range this plan does not prescribe. Dimmed to
+   * the ordinary text colour: the number is real, but it is not an offer the
+   * bulk apply will take, so it must not look like one. */
+  .ui-load__hint--off {
+    color: var(--color-ui-dim);
+  }
+
+  .ui-load__from,
+  .ui-load__empty {
+    color: var(--color-ui-faint);
+  }
+}

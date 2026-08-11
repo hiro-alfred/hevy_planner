@@ -14,6 +14,16 @@ export const exerciseEditSchema = z.object({
   repStart: z.number().int().min(1).max(100),
   repEnd: z.number().int().min(1).max(100),
   restSeconds: z.number().int().min(0).max(900),
+  // Optional, and the three states are all distinct: a number sets every set to
+  // it, an explicit null clears the load back to "you decide in Hevy", and an
+  // ABSENT key leaves whatever per-set weights the exercise already had. The
+  // last one is what keeps every caller that predates this field — and its
+  // tests — behaving exactly as before.
+  //
+  // Capped well above a barbell because it is not one: a loaded leg press or hip
+  // thrust passes 500 kg in a normal gym, and the cap exists to catch a typo
+  // rather than to have an opinion about strength.
+  weightKg: z.number().positive().max(1000).nullable().optional(),
 });
 
 export type ExerciseEdit = z.infer<typeof exerciseEditSchema>;
@@ -34,16 +44,22 @@ export type ExerciseEdit = z.infer<typeof exerciseEditSchema>;
  * emit sets and how the prompt describes them; per-set rep ranges are
  * representable in the model but nothing produces them, and inventing a UI for
  * them here would be scope no one asked for.
+ *
+ * A stated `weightKg` likewise applies to every set — the deliberate way to take
+ * a suggested load one exercise at a time (lib/planner/suggested-loads.ts), and
+ * the only way to type a starting weight in this app at all. Omitting the field
+ * keeps the per-set weights untouched.
  */
 export function applyExerciseEdit(exercise: PlanExercise, edit: ExerciseEdit): PlanExercise {
   const lastWeight = exercise.sets[exercise.sets.length - 1]?.weightKg ?? null;
+  const uniformWeight = edit.weightKg !== undefined;
 
   const sets: PlanSet[] = Array.from({ length: edit.sets }, (_unused, index) => {
     const existing = exercise.sets[index];
     return {
       type: existing?.type ?? "normal",
       repRange: { start: edit.repStart, end: edit.repEnd },
-      weightKg: existing ? existing.weightKg : lastWeight,
+      weightKg: uniformWeight ? edit.weightKg! : existing ? existing.weightKg : lastWeight,
     };
   });
 

@@ -14,40 +14,6 @@ Append-only journal of ingests, queries, and lint passes ([[schema]]). Newest en
 at the bottom. When this page nears the 300-line cap, move the oldest entries to
 [[log-archive]].
 
-- 2026-08-08 — **SQLite → MariaDB**, at the owner's request. Merged
-  `worktree-e2e-build` into `dev` first (fast-forward, 8 commits) so the
-  conversion ran once against the full app rather than twice against diverging
-  branches. Rationale, cost, and the full dialect-difference table are in
-  [[mariadb-migration]]; the ops cost (second container, tests now need a
-  server) was raised before starting and the change confirmed anyway. The trap
-  worth remembering: drizzle's mysql `json()` defines no `mapFromDriverValue`
-  and MariaDB reports `JSON` as `LONGTEXT`, so every JSON column would have
-  returned an unparsed string — silently, failing only at the first property
-  access. `src/lib/db/json-column.ts` maps both directions. Four more that a
-  config-only swap would have missed: no `RETURNING`, no `json_each`/
-  `JSON_OVERLAPS`, `escape '\'` does not parse, and `better-sqlite3`'s
-  synchronous transaction had to become async. Migrations squashed to a fresh
-  `0000` (no instance held data; the old `0001` dedup only ever repaired SQLite
-  files). Also fixed eslint linting a nested worktree's `.next/` output as if it
-  were source — 769 phantom errors. Build, lint and generate green; **the
-  DB-backed suites are unrun** (no Docker on this machine), so the translated
-  SQL was verified by compiling it through drizzle's mysql dialect instead.
-- 2026-08-08 — Verified the MariaDB move end to end, and **corrected a claim I
-  got wrong**. Installed MariaDB 12.3.2 natively (no Docker on this box; WSL2
-  has no distro), created `hevy_planner`, ran the suite against it: **63/63**.
-  Boot migration built all four tables plus `__drizzle_migrations` on first
-  request; `/`, `/settings`, `/plans/new` all 200 and a missing id 404s, with a
-  clean server log. The correction: [[mariadb-migration]] asserted that mysql2
-  returns MariaDB JSON columns unparsed, so drizzle's `json()` could not
-  round-trip. Half true. The column IS reported as protocol type 252 (LONGTEXT),
-  not 245 — but mysql2 3.23.2 parses it regardless, via the extended metadata
-  MariaDB 10.5+ sends marking the format as JSON; both text and binary protocols
-  returned an object. `json()` would have worked here. `json-column.ts` stays,
-  now justified as version-independence (older servers and drivers that ignore
-  extended metadata do return the string) rather than as a fix for a live bug.
-  Lesson worth keeping: "the protocol type is wrong" did not imply "the driver
-  gets it wrong" — the vendor shipped a compatibility path I had not accounted
-  for, and only running it showed that. Still untested: the container path.
 - 2026-08-08 — First real catalog refresh failed; two spec-vs-reality bugs found
   and fixed. `describeHevyError` showed only "Catalog refresh failed." because
   the underlying error was neither a HevyApiError nor a UserFacingError, so
@@ -288,3 +254,26 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   tests** (up from 144), 14 wiki tests and `next build` green. Still unverified
   against a real Hevy account — every response shape here comes from the spec that
   [[hevy-api]] has already caught lying once.
+- 2026-08-11 — **Fed the workout records back into plan generation**
+  ([[suggested-loads]]), which was next step 5 in [[hot]]. `rules.ts` still emits
+  `weightKg: null`, but the comment justifying it was half false: the app HAS a
+  lifting history now. The owner chose "suggest, don't commit" from three options,
+  so the plan page shows the load [[progressive-overload]]'s engine computes and it
+  becomes a plan weight only on an explicit **Use suggested loads** press — because
+  a plan weight syncs to a routine [[hevy-api]] cannot delete. Suggestion runs AFTER
+  generation for BOTH generators, so the rules and LLM paths cannot disagree and the
+  prompt stays cheap. The trap worth remembering: the engine infers a rep band from
+  the log while the plan prescribes one from the request, and 140 kg earned in sets
+  of five is a reckless starting weight for sets of twelve — so mismatched
+  suggestions are shown, explained, and excluded from the bulk apply. N+1 avoided
+  with `getRecentSessions(ids)`: one `inArray` plus `dense_rank()` in SQL, capped at
+  the engine's own `PROGRESSION_WINDOW`, so a whole plan costs two queries. Also:
+  `weightKg` became editable per exercise (three-state — number, explicit null,
+  absent key), and the plan page now DISPLAYS loads at all, which it never did even
+  though the LLM path could already set them. **Run, not just built**: seeded MariaDB,
+  production build on 3005, a 4-day plan generated in a browser with all six
+  recommendation branches visible, 8 of 10 suggestions applied and verified in the
+  stored JSON, and the new weight field typed and cleared. `scripts/cdp-drive.mjs`
+  gained a `fill:` step (React controlled inputs ignore a plain `.value` assignment);
+  `scripts/seed-demo-history.mjs` is new so the next session need not re-invent the
+  seed. eslint, tsc, **278 tests** (up from 254) and `next build` green.

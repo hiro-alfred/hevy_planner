@@ -78,3 +78,5 @@ category. Start here; conventions live in [[schema]].
   per-plan rejections, and why sync stays safe. BUILT 2026-08-11.
 - [[progressive-overload]] — why the next-session recommendation is a
   deterministic double-progression engine and not the LLM. BUILT 2026-08-11.
+- [[suggested-loads]] — history feeding plan generation: why a suggested starting
+  weight stops one click short of a Hevy routine. BUILT 2026-08-11.

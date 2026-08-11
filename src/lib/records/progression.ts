@@ -62,6 +62,16 @@ const STALL_SESSIONS = 3;
 /** A layoff long enough that the last session no longer describes the lifter. */
 const LAYOFF_DAYS = 28;
 
+/**
+ * The most sessions any rule here reads.
+ *
+ * Exported so a caller loading history can fetch exactly this many per exercise
+ * instead of a whole training career — the newest three sessions are all the
+ * evidence the rules below ever consult, and `getRecentSessions` derives its
+ * default from this constant so the two cannot drift apart.
+ */
+export const PROGRESSION_WINDOW = Math.max(BAND_WINDOW, STALL_SESSIONS);
+
 const DELOAD_FACTOR = 0.9;
 
 /** Assistance makes a lift EASIER, so less of it is the harder set. */

@@ -44,8 +44,24 @@ function toExercise(row: CatalogRow, prescription: Prescription, volume: Volume)
     name: row.title,
     restSeconds: prescription.restSeconds,
     notes: null,
-    // Starting loads are left to the user: the app has no lifting history yet,
-    // and a wrong suggested weight is worse than an empty field.
+    // Generation still emits no weight, but the reason has changed and is worth
+    // stating precisely, because half the old one is now false.
+    //
+    // It used to read "the app has no lifting history yet". It has one — a full
+    // local cache of logged workouts and a progression engine over it — and
+    // lib/planner/suggested-loads.ts uses both to work out a starting load for
+    // every exercise here that the trainee has trained. What stops it being
+    // written in at THIS point is the other half, which still holds: a plan
+    // weight syncs to Hevy, Hevy cannot delete a routine, and so a number that
+    // travelled from generation to the account without anyone looking at it
+    // could never be withdrawn. The suggestion is shown on the plan page and
+    // becomes a plan weight when the trainee applies it.
+    //
+    // Deliberately the same for the LLM path, which prefills nothing from
+    // history either (the prompt is never told about it — see
+    // knowledge/systems/plan-generation.md on why that prompt stays cheap).
+    // Both generators therefore produce the same loads for the same request,
+    // and suggestion happens once, afterwards, for both.
     sets: Array.from({ length: volume.setsPerExercise }, () => ({
       type: "normal" as const,
       repRange: { ...prescription.repRange },

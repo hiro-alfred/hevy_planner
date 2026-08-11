@@ -23,6 +23,7 @@ export function ExerciseEdit({
   repStart,
   repEnd,
   restSeconds,
+  weightKg,
 }: {
   planId: number;
   dayIndex: number;
@@ -32,16 +33,25 @@ export function ExerciseEdit({
   repStart: number;
   repEnd: number;
   restSeconds: number;
+  weightKg: number | null;
 }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ sets, repStart, repEnd, restSeconds });
+  // Weight is held as a STRING, unlike the other four, because empty is a real
+  // value here: it means "no starting load, decide it in Hevy", which is what
+  // every generated exercise begins as. Coercing it to 0 the way the numeric
+  // fields do would turn "leave it blank" into a 0 kg set.
+  const [weight, setWeight] = useState(weightKg === null ? "" : String(weightKg));
   const [state, setState] = useState<ActionState>(IDLE);
   const [isPending, startTransition] = useTransition();
 
   function toggle() {
     // Re-opening starts from what the server currently holds, not from a
     // half-finished edit abandoned earlier.
-    if (!open) setForm({ sets, repStart, repEnd, restSeconds });
+    if (!open) {
+      setForm({ sets, repStart, repEnd, restSeconds });
+      setWeight(weightKg === null ? "" : String(weightKg));
+    }
     setState(IDLE);
     setOpen(!open);
   }
@@ -60,14 +70,12 @@ export function ExerciseEdit({
   }
 
   function save() {
+    const trimmed = weight.trim();
     startTransition(async () => {
-      const result = await editExerciseAction(
-        planId,
-        dayIndex,
-        exerciseIndex,
-        templateId,
-        form,
-      );
+      const result = await editExerciseAction(planId, dayIndex, exerciseIndex, templateId, {
+        ...form,
+        weightKg: trimmed === "" ? null : Number(trimmed),
+      });
       setState(result);
       if (result.status === "success") setOpen(false);
     });
@@ -114,11 +122,29 @@ export function ExerciseEdit({
               </label>
               <input {...field("restSeconds")} min={0} max={900} step={15} />
             </span>
+            <span>
+              <label htmlFor={`weightKg-${dayIndex}-${exerciseIndex}`} className="ui-label">
+                Weight (kg)
+              </label>
+              <input
+                id={`weightKg-${dayIndex}-${exerciseIndex}`}
+                type="number"
+                className="ui-field ui-field--num"
+                value={weight}
+                min={0}
+                max={1000}
+                step={2.5}
+                placeholder="—"
+                onChange={(event) => setWeight(event.target.value)}
+              />
+            </span>
           </div>
 
           <p className="ui-swap__note">
             Changing sets or rest changes how long the session takes, so the plan may warn that a
-            day no longer matches the length you asked for.
+            day no longer matches the length you asked for. A weight applies to every set, and an
+            empty box leaves the load for you to pick in Hevy — whatever is here is what the next
+            sync writes into your account.
           </p>
 
           <span>

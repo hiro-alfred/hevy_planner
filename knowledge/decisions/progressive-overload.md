@@ -5,7 +5,7 @@ tags: [decision, records, progression, training]
 type: design
 created: 2026-08-11
 updated: 2026-08-11
-sources: [src/lib/records/progression.ts, src/lib/planner/prescription.ts, src/lib/planner/rules.ts]
+sources: [src/lib/records/progression.ts, src/lib/planner/prescription.ts, src/lib/planner/rules.ts, src/lib/planner/suggested-loads.ts]
 ---
 
 # Progressive overload — a deterministic engine, not the LLM
@@ -73,11 +73,14 @@ Three details that are easy to get wrong:
 
 ## Scope
 
-**Read-only, and not wired into plans.** It recommends; it never writes to Hevy and
-never edits a plan. That is a deliberate limit given the irreversible write path in
-[[hevy-sync]] — but it also means `rules.ts` still leaves starting loads blank on
-generated plans, on the now-obsolete grounds that "the app has no lifting history yet".
-Feeding records back into generation is the natural next step and is NOT built.
+**Read-only. It recommends; it never writes to Hevy and never edits a plan by itself.**
+
+Since 2026-08-11 it does reach plans, through [[suggested-loads]]: the plan page runs
+this same engine over the exercises a generated plan contains and offers the resulting
+loads as suggestions. `rules.ts` still emits `weightKg: null` at generation — but on the
+irreversibility of [[hevy-sync]] now, not on the obsolete grounds that "the app has no
+lifting history yet". A suggestion becomes a plan weight only when the trainee applies
+it, so the read-only limit above still holds where it matters.
 
 Fully unit-tested (21 cases) and exercised end-to-end against a seeded database; never
 run against a real Hevy account.

@@ -9,7 +9,9 @@ import { forkPlan, getPlan, savePlan } from "@/lib/plans";
 import { exerciseAt } from "@/lib/planner/alternatives";
 import { generatePlan } from "@/lib/planner/generate";
 import { applyPlanEdit, exerciseEditSchema } from "@/lib/planner/plan-edit";
+import { getPlanLoadSuggestions } from "@/lib/planner/plan-loads";
 import type { PlanRequest } from "@/lib/planner/schema";
+import { applySuggestedLoads } from "@/lib/planner/suggested-loads";
 import { parseRequest, REQUEST_FORM_ERROR } from "../request-form";
 
 // Editing actions, in two flavours that differ in one important way.
@@ -33,11 +35,19 @@ export async function editExerciseAction(
   dayIndex: number,
   exerciseIndex: number,
   expectedTemplateId: string,
-  input: { sets: number; repStart: number; repEnd: number; restSeconds: number },
+  input: {
+    sets: number;
+    repStart: number;
+    repEnd: number;
+    restSeconds: number;
+    weightKg?: number | null;
+  },
 ): Promise<ActionState> {
   const parsed = exerciseEditSchema.safeParse(input);
   if (!parsed.success) {
-    return errorState("Sets must be 1–12, reps 1–100, and rest 0–900 seconds.");
+    return errorState(
+      "Sets must be 1–12, reps 1–100, rest 0–900 seconds, and any weight 0–1000 kg.",
+    );
   }
   // Hevy accepts a reversed range and then renders nonsense, so refuse it here
   // rather than letting it through to the validator as a warning.
@@ -59,6 +69,47 @@ export async function editExerciseAction(
 
     await savePlan(planId, applyPlanEdit(row.plan, dayIndex, exerciseIndex, parsed.data));
     return successState("Updated.");
+  });
+
+  if (result.status === "success") {
+    revalidatePath(`/plans/${planId}`);
+    revalidatePath("/");
+  }
+  return result;
+}
+
+/**
+ * Writes the loads suggested from the trainee's history into the plan.
+ *
+ * The deliberate click that a suggested weight needs before it becomes a plan
+ * weight. Until it happens `weightKg` stays null and a sync sends Hevy an empty
+ * load field, exactly as before this feature existed; after it, the numbers are
+ * ordinary plan data that the per-exercise Edit form can change and the next
+ * sync will push. Given that Hevy has no DELETE, that gap between "the app
+ * worked out what you should lift" and "your account now says so" is the point,
+ * not friction to be optimised away later.
+ *
+ * The suggestions are RECOMPUTED here from the database rather than taken from
+ * the page, for the usual reason a server action never trusts its caller — and
+ * for a second one: the page may have been open since before this morning's
+ * workout synced, and the loads that get written should be the ones the history
+ * implies now.
+ */
+export async function applySuggestedLoadsAction(planId: number): Promise<ActionState> {
+  const result = await withPlanLock(planId, async (): Promise<ActionState> => {
+    const row = await getPlan(planId);
+    if (!row?.plan) return errorState("Plan not found.");
+
+    const suggestions = await getPlanLoadSuggestions(row.plan);
+    const { plan, applied } = applySuggestedLoads(row.plan, suggestions);
+    if (applied === 0) {
+      return successState("Nothing to change — these loads are already what your history says.");
+    }
+
+    await savePlan(planId, plan);
+    return successState(
+      `Starting loads set on ${applied} exercise${applied === 1 ? "" : "s"}. Nothing has gone to Hevy yet — check them, then sync.`,
+    );
   });
 
   if (result.status === "success") {

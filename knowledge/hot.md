@@ -16,130 +16,92 @@ latest state. History belongs in [[log]] — this page holds only the CURRENT st
 Keep the four sections below; they are the template.
 
 ## Active task
-Nothing in flight. The last round, at the owner's request, made **the Hevy account
-browsable and reworked both data screens**:
+Nothing in flight. The last round did **next step 5: fed the workout records back
+into plan generation** ([[suggested-loads]]).
 
-- **`/routines/[routineId]` is new** — click a routine in "In Hevy" and see its
-  exercises, sets, rep ranges, rest, notes and supersets, each with **what you
-  actually lifted last time** from the workout cache. Read live from Hevy
-  (`GET /v1/routines/{id}`), because a routine may have been edited in the Hevy app.
-- **"In Hevy" is now a browser, not an inventory**: grouped by Hevy folder, rows are
-  links, each naming its first three movements plus "trained 34× · last today", with
-  filter chips (all / from a plan / made in Hevy / trained) and a search that also
-  matches exercise names. All GET params, so the state is the URL.
-- **Records reworked**: sortable (recent / heaviest / most trained / A–Z, in SQL, not
-  in memory), rows carry the headline number and a recency dot, and the exercise page
-  gained an **inline-SVG estimated-1RM trend** (server-rendered, no chart library, x
-  axis in real time so a layoff looks like one) plus per-set chips with the top set
-  marked.
-- Two real bugs were caught by running it: a duration-only exercise (plank) rendered
-  "null reps" on the index and an empty "Personal records" card; both fixed.
+`rules.ts` still emits `weightKg: null`, but the comment justifying it was half
+false — the app has a full lifting history now. The owner was given three options
+and chose **"suggest, don't commit"**:
 
-New modules: `lib/records/last-session.ts` (one query for the last session of every
-exercise in a routine, one for per-routine training counts), `lib/records/trend.ts`
-+ `e1rm.ts`, `lib/hevy/routine-detail.ts` + `routine-format.ts`,
-`components/filter-bar.tsx`, `app/ui-data.css`.
+- The plan page runs [[progressive-overload]]'s engine (the SAME call `/records`
+  makes, asserted by a test) over the plan's exercises and shows the load each
+  one's history implies. It becomes a plan weight only when **Use suggested
+  loads** is pressed, because a plan weight syncs to a routine [[hevy-api]]
+  cannot delete.
+- **Suggestion runs AFTER generation, for BOTH generators.** The rules and LLM
+  paths therefore cannot produce different loads for the same request, and the
+  prompt stays cheap — it is never told about the history.
+- **The rep-band trap** is the part worth remembering: the engine infers a band
+  from the LOG while the plan prescribes one from the REQUEST. 140 kg earned in
+  sets of five is a reckless start for sets of twelve, so mismatched suggestions
+  are shown with the band they came from, dimmed, and excluded from the bulk
+  apply. The per-exercise Edit form takes them one at a time.
+- **N+1 avoided**: `getRecentSessions(ids)` in `last-session.ts` — one `inArray`
+  plus `dense_rank()` inside SQL, capped at `PROGRESSION_WINDOW` imported from
+  `progression.ts` — so a whole 7-day plan costs TWO queries, not fifty-six.
 
-The round before it built **records and progressive overload**, with the feature set
-designed by a Fable 5 subagent as asked:
+Two side effects worth knowing: `weightKg` is now editable per exercise (three
+states — a number, an explicit null, an absent key that changes nothing), and the
+plan page **displays loads at all** for the first time. It never did, even though
+the LLM path could already set one from the stated working weights — an unshown
+weight still synced.
 
-- [[workout-history]] — a local mirror of LOGGED workouts (two new tables, migration
-  `0002`, additive), synced by one backfill then the `/v1/workouts/events` delta feed.
-- [[exercise-records]] — `/records` and `/records/[templateId]`: per-exercise PRs,
-  a rep-max table, and recent sessions.
-- [[progressive-overload]] — the next-session recommendation. **Deterministic
-  double progression, NOT the LLM**, because progression is arithmetic and there is
-  still no `LLM_API_KEY` to verify an LLM path against.
+New modules: `lib/planner/suggested-loads.ts` (pure policy), `lib/planner/plan-loads.ts`
+(the two queries), `app/ui-loads.css`. New script: `scripts/seed-demo-history.mjs`.
 
-**Unlike every round before it, this one was actually run** against a database:
-production build on a throwaway MariaDB with hand-seeded history, both pages
-screenshotted, every recommendation branch (add weight / add reps / stall deload /
-bodyweight / insufficient data) rendered, and an unknown exercise id 404ing.
-
-**Both carried-over decisions are now CLOSED** — the owner delegated them
-("do whatever you think is right for both") on 2026-08-11 and all of it shipped:
-
-1. The intake-parameter review ([[trainee-profile]]) was **taken in full**. `age`
-   is cut, `targetWeightKg` is replaced by an explicit `phase` enum, and a
-   `goalKind` override was added. Both retired fields stay in
-   `planRequestSchema` — the swap actions re-parse stored requests in place and
-   zod strips what it does not know, so removing the keys would have deleted
-   them from every existing plan on its next swap.
-2. The `classifyGoal` default-text bug is **fixed twice over**: the classifier
-   now counts keyword evidence instead of returning on the first pattern (and
-   "build" is no longer a hypertrophy word), and `goalKind` skips it entirely
-   when set. The form defaults the new select to "Read it from what I wrote".
-
-Also this round: the **swap picker now ranks against the DAY**
-([[exercise-alternatives]]), so a replacement can neither strip a muscle of the
-work the day was giving it nor pile onto one the day already hammers; and
-`validatePlan` gained the generation-time half of the same rule.
-
-**What was actually run**: all of it, in a real browser, against the throwaway DB
-and the real 452-template catalog. The rebuilt plan form (age and target weight
-gone, phase and rep-range selects in place); the lopsided-day rule BOTH
-directions; and — via the new CDP driver below — **the swap picker itself,
-opened and paged**, which nothing in this project had ever done.
+Earlier rounds, unchanged: the routine browser and `/routines/[routineId]`;
+[[exercise-records]], [[workout-history]] and [[progressive-overload]]; the
+day-aware swap picker ([[exercise-alternatives]]); [[plan-editing]]; the Graphite
+theme. Both previously carried-over decisions (the [[trainee-profile]] intake
+review and the `classifyGoal` default-text bug) remain CLOSED.
 
 ## State reached
-- **The routine detail page and both reworked data screens are built and run.**
-  Lint, `tsc`, **254 vitest tests** (up from 195), 14 wiki tests and `next build`
-  green.
-- **A local stand-in Hevy server is how the routine screens were verified.**
-  `HEVY_API_BASE_URL` (new, optional, documented in `.env.example`) points the client
-  at another host; a ~150-line mock served folders, the routine list and
-  `/v1/routines/{id}` — deliberately in the ARRAY shape, which `unwrapRoutine`
-  tolerated. Both routine screens, the filters and the search were screenshotted
-  against it, plus a 103-workout seeded history for the records screens. **This is
-  not a real account**: the response shapes are still only as true as the spec.
-- **Records, the history cache and the progression engine are built and run.**
-  `/records` is in the nav between "In Hevy" and "Settings".
-- **The database needs migration `0002` on next boot** (tables `workouts`,
-  `workout_sets`). Purely additive — two new tables, nothing existing touched — and
-  it has been applied to a real MariaDB on boot, though only a throwaway one.
-  Migration `0001` (`plans.derived_from_plan_id`) may also still be pending on the
-  owner's real database.
-- Earlier and unchanged: **swap, editing, forking and the Hevy read-back are all
-  built** ([[exercise-alternatives]], [[plan-editing]], [[plan-generation]]). Of
-  those, still nothing is human-verified: `/routines` has never run against a real
-  account, and the plan-prompt latency claim rests on measured token counts rather
-  than a timed generation.
-- **The dev server is reachable from the LAN** — `next.config.ts` carries
-  `allowedDevOrigins: ["192.168.0.*"]`.
-- **Graphite is live across all screens** and screenshotted running.
-- **The container path is proven** ([[deployment]]).
+- **Suggested loads are built AND run.** Lint, `tsc`, **278 vitest tests** (up from
+  254), the wiki tests and `next build` all green.
+- **Verified in a real browser against a seeded MariaDB**, not just built: a 4-day
+  upper/lower plan generated from the form with every recommendation branch visible
+  at once (add weight 102.5, add reps 70, layoff deload 40, stall deload 90,
+  baseline 30, the non-transferable strength squat 140, pull-ups with history but
+  no load, and exercises with no history); "Use suggested loads (8)" pressed and the
+  8 confirmed in the stored plan JSON with the squat correctly untouched; the new
+  Edit weight field opened prefilled, typed to 97.5 and cleared back to null.
+- **`scripts/cdp-drive.mjs` gained a `fill:` step.** React controlled inputs ignore
+  a plain `.value` assignment — the native setter plus a bubbled `input` event is
+  what React listens for. Forms behind a disclosure are now drivable, not only
+  buttons.
+- **`scripts/seed-demo-history.mjs` is new**: builds the demo catalog + history in
+  one command, so verification does not start by re-inventing a seed each time. It
+  DELETES the catalog and history first — throwaway databases only.
+- **The database needs migrations `0001` and `0002` on next boot** against the
+  owner's real database. Both are additive.
+- Still nothing has met a **real Hevy account**: `/routines`, the workout
+  endpoints, and the write path are all spec-shaped only.
 
 ## Open questions / dissents
 - **BLOCKER: `.env` `DATABASE_URL` does not work.** A fresh `npm run dev` dies with
   `Access denied for user 'hevy'@'localhost' (using password: YES)`. Unchanged since
-  2026-08-08. Everything screenshotted so far, including this round, ran against a
-  **throwaway** database on 3307, never the owner's real one. Only the owner can fix
-  the `hevy` password in `.env`.
-- **A `next dev` server is running on port 3000 and was NOT touched.** Next 16
-  refuses a second dev server for the same directory, so this round used
-  `next start` on 3005/3006 instead of killing it. It is presumably the owner's.
-- **Unproven: `GET /v1/routines/{routineId}` and `GET /v1/routine_folders`**, both
-  used for the first time by the routine detail page and the folder grouping. The
-  single-routine response is unwrapped defensively (object OR array, else a 404
-  rather than a crash) and a folder-name failure degrades to an unnamed group, but
-  neither endpoint has met a real account. The read side's `title` on an exercise is
-  likewise taken from the spec, with the catalog and then the id as fallbacks.
-- **Unproven: every workout-endpoint response shape.** `HevyWorkout`,
-  `HevyWorkoutEvent` and the `events?since=` semantics (inclusive? compared against
-  `updated_at`?) all come from the pinned spec, which [[hevy-api]] has already caught
-  lying about a field name once. Delta application is idempotent so an overlap is
-  harmless, but nothing here has met a real account.
-- **Unproven: LLM generation.** Still no `LLM_API_KEY` anywhere. `@ai-sdk/deepseek`
-  does not set `supportsStructuredOutputs`, so `generateObject` runs in `json_object`
-  mode, which DeepSeek documents as occasionally returning empty content.
-- **Unproven: the live Hevy write path**, and it is irreversible — no DELETE
-  endpoint plus a routine cap ([[hevy-api]]). The first real sync must be a 2-day plan.
+  2026-08-08. Everything screenshotted so far, this round included, ran against a
+  **throwaway** database on 3307. Only the owner can fix the `hevy` password.
+- **A `next dev` server is running on port 3000 and was NOT touched** (verified still
+  serving 200 at wrap-up). Next 16 refuses a second dev server for the same
+  directory, so this round used `next start -p 3005` and stopped it afterwards.
+- **`scripts/seed-demo-history.mjs` was not asked for.** It is committed because
+  every verified round so far has begun by hand-seeding a database and each one
+  re-invented that seed. Delete it if that is unwanted.
+- **Unproven: the rep-band equality rule against real training.** Bands compare by
+  exact equality because both sides come from `BY_GOAL`; a trainee whose plan was
+  hand-edited to a custom range gets no bulk apply at all. Conservative on purpose,
+  but nobody has trained against it.
+- **Unproven: `GET /v1/routines/{routineId}` and `GET /v1/routine_folders`**, and
+  **every workout-endpoint response shape** — all from the pinned spec, which
+  [[hevy-api]] has already caught lying about a field name once.
+- **Unproven: LLM generation.** Still no `LLM_API_KEY` anywhere.
+- **Unproven: the live Hevy write path**, and it is irreversible — no DELETE plus a
+  routine cap. The first real sync must be a 2-day plan.
 - **Unproven: the boot-migration retry** in `src/lib/db/migrate.ts`.
 - **`data/` still holds the pre-migration SQLite file, which likely contains the Hevy
-  key IN PLAINTEXT.** Gitignored, not deleted — the owner's data, their call. Flagged
-  six times now.
-- **[[log]] is at 290 of its 300 lines** — the next entry must rotate the oldest into
-  [[log-archive]] first.
+  key IN PLAINTEXT.** Gitignored, not deleted — the owner's data, their call.
+  Flagged seven times now.
 - Hosting undecided (netcup leaning). No backup story yet; losing `sync_links` is the
   expensive failure, because re-sync would create DUPLICATE Hevy routines.
 - `.claude/worktrees/e2e-build` is fully merged and redundant; safe to
@@ -159,23 +121,23 @@ session shell is not admin, but `Start-Process -Verb RunAs` works and prompts UA
 Bitdefender's browser extension injects attributes into the DOM — expect hydration
 warnings that are not the app's fault ([[ui-design-system]]).
 
-**Screenshots**: no Playwright here, and Claude for Chrome is a browser-side
-product this session cannot reach. For a static page the tool is
-`chrome --headless --disable-gpu --screenshot=… --window-size=W,H` from
-`C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`, plus
-`--force-prefers-reduced-motion` — without it the capture freezes mid-reveal with
-every stat counter still reading 0. The `--screenshot=` path must be a **Windows**
-path; a Git-Bash `/c/...` path fails with "Access is denied".
+**The full run loop, start to screenshot** (proven twice now):
 
-**Clicking is solved** (2026-08-11). `scripts/cdp-drive.mjs` drives the same
-installed Chrome over the DevTools Protocol with **no new dependency** — Node
-22.18 ships a global `WebSocket`, so a ~60-line script is a complete driver.
-Launch Chrome with `--remote-debugging-port=9222 --user-data-dir=<scratch>`, then
-`node scripts/cdp-drive.mjs <url> "Swap|More alternatives" <out.png> [selector]`.
-Clicks match visible-text PREFIX, and the selector dump makes a run readable in
-the terminal rather than only in the PNG. **The long-standing "nothing here is
-human-verified" gap is now a choice, not a limitation** — anything behind a click
-can be exercised.
+```
+node -e "…create database hevy_loads…"                    # scratch db on 3307
+DATABASE_URL=…/hevy_loads npx next start -p 3005          # boot builds the schema
+SEED_DATABASE_URL=…/hevy_loads node scripts/seed-demo-history.mjs
+chrome --headless=new --remote-debugging-port=9222 --user-data-dir=<scratch> …
+node scripts/cdp-drive.mjs <url> "Edit|fill:#weightKg-0-0=97.5|Save" <out.png> <sel>
+```
+
+Chrome is `C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`; add
+`--force-prefers-reduced-motion` or the capture freezes mid-reveal with every stat
+counter reading 0. Screenshot paths must be **Windows** paths — a Git-Bash `/c/...`
+path fails with "Access is denied". `CDP_SETTLE_MS` overrides the 4 s settle; a
+server-action click needs 6–8 s or the shot catches a button still reading
+"Building your plan…". Clicks match visible-text PREFIX and hit the FIRST match, so
+targeting the third "Edit" on a page is still not possible.
 
 > [!warning] `.env` must never be read (CLAUDE.md)
 > Append new keys rather than rewriting the file, and only with names that
@@ -186,17 +148,18 @@ can be exercised.
    database again. Migrations `0001` and `0002` apply on that boot.
 2. **Sync workout history against the real Hevy account** from `/records` — the first
    real exercise of the workout endpoints, and the only way to learn whether the spec
-   is telling the truth about them. Read-only, so it is safe to try.
+   is telling the truth about them. Read-only, so it is safe to try. It is also what
+   makes [[suggested-loads]] say anything about real training rather than seed data.
 3. **Owner adds `LLM_API_KEY=<deepseek key>` to `.env`**, restart, generate one plan,
    confirm the preview reports an LLM plan and not a rules fallback.
 4. **Sync one 2-day plan to Hevy.** First write to the live account; irreversible.
-5. Consider feeding records back into generation — `rules.ts` still leaves starting
-   loads blank on the now-obsolete grounds that "the app has no lifting history yet".
-5a. **Use `scripts/cdp-drive.mjs` on the rest of the interactive UI.** The swap
-   picker is now verified; the per-exercise Edit form, the rejected-exercises
-   Restore/Clear list and the sync buttons have still never been clicked.
-5b. **Open a real routine at `/routines/[id]`** once the key and database work —
-   the only way to learn whether the single-routine and folder endpoints behave as
-   the spec claims, and whether Hevy really names exercises on the read side.
+   Now also the first time a suggested LOAD would reach the account — apply the loads
+   before syncing so that path is exercised deliberately rather than by accident.
+5. **Use `scripts/cdp-drive.mjs` on what is still unclicked**: the rejected-exercises
+   Restore/Clear list and the sync buttons. The swap picker, the Edit form and the
+   suggested-loads button are now verified.
+5a. **Open a real routine at `/routines/[id]`** once the key and database work — the
+   only way to learn whether the single-routine and folder endpoints behave as the
+   spec claims.
 6. Decide what to do with the compose stack (`docker compose down [-v]`), pick the
    VPS, add a `mysqldump` backup cron, and ask about deleting `data/`.

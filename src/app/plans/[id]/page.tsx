@@ -8,10 +8,16 @@ import { StatusChip } from "@/components/status-chip";
 import { getTemplatesByIds } from "@/lib/hevy/catalog";
 import { getSyncState } from "@/lib/hevy/sync";
 import { getPlan } from "@/lib/plans";
+import { getPlanLoadSuggestions } from "@/lib/planner/plan-loads";
+import {
+  countApplicable,
+  countLoadedExercises,
+  type LoadSuggestion,
+} from "@/lib/planner/suggested-loads";
 import { collectTemplateIds, validatePlan } from "@/lib/planner/validate";
 import { getHevyKeyStatus } from "@/lib/settings";
 import { deletePlanAction, regeneratePlanAction, syncPlanAction } from "../actions";
-import { duplicatePlanAction } from "./edit-actions";
+import { applySuggestedLoadsAction, duplicatePlanAction } from "./edit-actions";
 import { PlanPreview } from "./plan-preview";
 import { RejectedExercises } from "./rejected-exercises";
 
@@ -45,6 +51,17 @@ export default async function PlanPage({ params, searchParams }: PageProps<"/pla
     getHevyKeyStatus(),
   ]);
   const violations = plan ? validatePlan(plan, row.request, catalog) : [];
+
+  // Computed on every render rather than stored with the plan, for the same
+  // reason validation is: the answer depends on the workout history, and a
+  // suggestion cached from before this morning's session would be advice about
+  // a lifter who no longer exists. Two batched queries, and the catalog map
+  // above is handed over so it is not read twice.
+  const suggestions: Map<string, LoadSuggestion> = plan
+    ? await getPlanLoadSuggestions(plan, catalog)
+    : new Map();
+  const applicable = plan ? countApplicable(plan, suggestions) : 0;
+  const loaded = plan ? countLoadedExercises(plan) : 0;
 
   // Free-text profile fields the deterministic generator has no way to honour.
   const ignoredByRules = [
@@ -129,7 +146,37 @@ export default async function PlanPage({ params, searchParams }: PageProps<"/pla
             <p className="text-sm leading-relaxed">{plan.progression}</p>
           </Card>
 
-          <PlanPreview plan={plan} planId={planId} />
+          <PlanPreview plan={plan} planId={planId} suggestions={suggestions} />
+
+          {/* Only when there is history to draw on. A plan whose exercises have
+              never been logged says nothing about starting loads, which is the
+              same silence the app kept before it could sync workouts at all. */}
+          {suggestions.size > 0 && (
+            <Card
+              title="Starting loads from your history"
+              description={
+                applicable > 0
+                  ? `${applicable} exercise${applicable === 1 ? " has" : "s have"} a load worked out from what you have logged, by the same progression the records page uses. Nothing is in the plan until you put it there.`
+                  : "Every load your history supports is already in this plan."
+              }
+            >
+              <div className="flex flex-col gap-4">
+                <Notice tone="info">
+                  Loads are part of the routine a sync creates, and Hevy&apos;s API cannot delete a
+                  routine — so these stay suggestions until you apply them. Check anything that
+                  looks wrong with Edit first; a weight that is too heavy costs more than a blank
+                  field does.
+                </Notice>
+                {applicable > 0 && (
+                  <ActionButton
+                    action={applySuggestedLoadsAction.bind(null, planId)}
+                    label={`Use suggested loads (${applicable})`}
+                    pendingLabel="Applying…"
+                  />
+                )}
+              </div>
+            </Card>
+          )}
 
           <RejectedExercises planId={planId} excluded={row.request.excludedExercises ?? []} />
 
@@ -147,6 +194,13 @@ export default async function PlanPage({ params, searchParams }: PageProps<"/pla
               )}
               {syncState.syncedDays > 0 && !syncState.hasPendingChanges && (
                 <Notice tone="info">Hevy is up to date with this plan.</Notice>
+              )}
+              {loaded > 0 && (
+                <Notice tone="info">
+                  {loaded} exercise{loaded === 1 ? "" : "s"} carr{loaded === 1 ? "ies" : "y"} a
+                  starting weight, and syncing writes {loaded === 1 ? "it" : "them"} into the
+                  routine as {loaded === 1 ? "it is" : "they are"}.
+                </Notice>
               )}
               {syncState.staleRoutines > 0 && (
                 <Notice tone="warn">
