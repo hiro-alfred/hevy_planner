@@ -69,6 +69,32 @@ describe("prescription", () => {
     expect(classifyGoal("just feel better")).toBe("hypertrophy");
   });
 
+  /**
+   * The regression this guards: the plan form's own default goal text used to
+   * classify as STRENGTH, because the strength pattern was tested first and
+   * "stronger" matched it. An untouched form therefore generated a 3–6 rep,
+   * 180-second plan while the box on screen said "Build muscle".
+   */
+  it("does not read the form's own default text as a strength goal", () => {
+    expect(classifyGoal("Build muscle and get stronger")).toBe("hypertrophy");
+  });
+
+  it("weighs the evidence rather than taking the first keyword it sees", () => {
+    // "build" is not a hypertrophy word — it is a verb every goal wears.
+    expect(classifyGoal("build strength")).toBe("strength");
+    expect(classifyGoal("build endurance for hiking")).toBe("endurance");
+    // More strength words than muscle words, so the tie-break never applies.
+    expect(classifyGoal("muscle, but mostly heavy strength work and 1rm")).toBe("strength");
+  });
+
+  it("lets an explicit goal kind overrule the text outright", () => {
+    const req = request({ goal: "get as strong as possible", goalKind: "endurance" });
+    expect(prescribe(req).goalKind).toBe("endurance");
+    expect(prescribe(req).repRange).toEqual({ start: 12, end: 20 });
+    // Absent, the text still decides.
+    expect(prescribe(request({ goal: "get as strong as possible" })).goalKind).toBe("strength");
+  });
+
   it("charges every set its work plus its rest", () => {
     expect(exerciseSeconds(3, 60)).toBe(3 * (45 + 60));
   });
@@ -262,5 +288,62 @@ describe("validatePlan", () => {
     const bad = plan();
     bad.days[0]!.exercises[0]!.sets[0]!.repRange = { start: 12, end: 8 };
     expect(validatePlan(bad, req, catalog).join(" ")).toMatch(/reversed rep range/);
+  });
+});
+
+describe("validatePlan, day balance", () => {
+  // One push day, so the targets are chest / shoulders / triceps.
+  const pushReq = request({ split: "push_pull_legs", sessionsPerWeek: 1, sessionMinutes: 45 });
+
+  function dayOf(rows: CatalogRow[]): Plan {
+    return {
+      title: "Test",
+      progression: "Add weight.",
+      days: [
+        {
+          title: "Push",
+          exercises: rows.map((r) => ({
+            exerciseTemplateId: r.id,
+            name: r.title,
+            restSeconds: 90,
+            notes: null,
+            sets: [
+              { type: "normal" as const, repRange: { start: 8, end: 12 }, weightKg: null },
+              { type: "normal" as const, repRange: { start: 8, end: 12 }, weightKg: null },
+              { type: "normal" as const, repRange: { start: 8, end: 12 }, weightKg: null },
+            ],
+          })),
+        },
+      ],
+    };
+  }
+
+  function check(rows: CatalogRow[]): string {
+    return validatePlan(dayOf(rows), pushReq, new Map(rows.map((r) => [r.id, r]))).join(" ");
+  }
+
+  it("flags a day that spent its exercises on one muscle and skipped another", () => {
+    const chest = () => row({ primaryMuscleGroup: "chest" });
+    const problems = check([chest(), chest(), chest(), row({ primaryMuscleGroup: "triceps" })]);
+    expect(problems).toMatch(/3 chest exercises/);
+    expect(problems).toMatch(/nothing at all for shoulders/);
+  });
+
+  it("says nothing when a crowded muscle did not cost anything", () => {
+    // Three chest movements again, but the day still reaches shoulders and
+    // triceps — through secondaries, which is how real pressing works. Crowding
+    // on its own is not a fault, or every legs day would be one.
+    const press = () =>
+      row({ primaryMuscleGroup: "chest", secondaryMuscleGroups: ["shoulders", "triceps"] });
+    expect(
+      check([press(), press(), press(), row({ primaryMuscleGroup: "triceps" })]),
+    ).not.toMatch(/nothing at all/);
+  });
+
+  it("says nothing when a day simply has too few exercises to reach everything", () => {
+    // Two exercises cannot cover three groups, and that is the session length's
+    // doing, not the exercise choice's. No muscle is crowded, so no complaint.
+    expect(check([row({ primaryMuscleGroup: "chest" }), row({ primaryMuscleGroup: "triceps" })]))
+      .not.toMatch(/nothing at all/);
   });
 });

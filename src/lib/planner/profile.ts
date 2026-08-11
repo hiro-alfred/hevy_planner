@@ -17,9 +17,13 @@ const MAINTAIN_BAND_KG = 2;
 /**
  * Reads a training phase out of current versus target bodyweight.
  *
- * This is the ONLY reason targetWeightKg is collected — the raw number never
- * reaches the model. A phase changes real things: a deficit means holding load
- * rather than chasing PRs, a surplus licenses weekly jumps.
+ * LEGACY as of 2026-08-11: the form asks for the phase outright now. This is
+ * kept only for requests stored before that, which carry a target weight and no
+ * phase — a regenerate or a fork of one of those must still produce the plan it
+ * produced the first time. New requests never reach it.
+ *
+ * Its weakness is the reason it was replaced: it needs BOTH weights, so a
+ * trainee who gave a bodyweight and no target got no phase at all.
  */
 export function derivePhase(request: PlanRequest): Phase | null {
   const { bodyweightKg, targetWeightKg } = request;
@@ -28,6 +32,14 @@ export function derivePhase(request: PlanRequest): Phase | null {
   const delta = targetWeightKg - bodyweightKg;
   if (Math.abs(delta) <= MAINTAIN_BAND_KG) return "maintain";
   return delta < 0 ? "cut" : "bulk";
+}
+
+/**
+ * The trainee's phase: what they said, or failing that what their old request
+ * implies. One call site's worth of compatibility, in one place.
+ */
+export function resolvePhase(request: PlanRequest): Phase | null {
+  return request.phase ?? derivePhase(request);
 }
 
 const PHASE_GUIDANCE: Record<Phase, string> = {

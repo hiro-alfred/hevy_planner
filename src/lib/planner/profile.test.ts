@@ -92,12 +92,32 @@ describe("buildPrompt with an optional profile", () => {
     expect(prompt).not.toContain("unknown");
   });
 
-  it("sends the derived phase and never the raw target weight", () => {
-    const prompt = promptFor({ bodyweightKg: 82, targetWeightKg: 74 });
+  it("sends the stated phase", () => {
+    const prompt = promptFor({ bodyweightKg: 82, phase: "cut" });
     expect(prompt).toContain("## About the trainee");
     expect(prompt).toContain("Bodyweight: 82 kg");
     expect(prompt).toContain("Phase: cut");
+  });
+
+  it("still derives a phase for a request stored before the field existed", () => {
+    // Old requests carry two weights and no phase. A regenerate of one of those
+    // must produce the plan it produced the first time — and still never send
+    // the raw target weight.
+    const prompt = promptFor({ bodyweightKg: 82, targetWeightKg: 74 });
+    expect(prompt).toContain("Phase: cut");
     expect(prompt).not.toContain("74");
+  });
+
+  it("prefers what the trainee said over what their old weights implied", () => {
+    expect(promptFor({ bodyweightKg: 82, targetWeightKg: 74, phase: "bulk" })).toContain(
+      "Phase: bulk",
+    );
+  });
+
+  it("never sends age, which had no instruction attached to it", () => {
+    // Retired 2026-08-11: the line was a bare number, so whatever it changed
+    // was the model's own assumption rather than a rule this app wrote.
+    expect(promptFor({ age: 62 })).not.toContain("62");
   });
 
   it("asks for anchored starting weights only when a lift is known", () => {
@@ -128,6 +148,19 @@ describe("planRequestSchema", () => {
   it("rejects implausible numbers rather than storing them", () => {
     expect(() => planRequestSchema.parse(request({ bodyweightKg: 5 }))).toThrow();
     expect(() => planRequestSchema.parse(request({ age: 4 }))).toThrow();
+  });
+
+  /**
+   * Retired fields stay in the schema because several actions re-parse a stored
+   * request in place — `parse({ ...row.request, … })` — and zod strips what it
+   * does not know. Dropping them would delete them from every plan made before
+   * today, the first time its owner swapped an exercise.
+   */
+  it("keeps retired fields on a request it re-parses", () => {
+    const stored = planRequestSchema.parse(request({ age: 31, targetWeightKg: 74 }));
+    const reparsed = planRequestSchema.parse({ ...stored, excludedExercises: ["ex-1"] });
+    expect(reparsed.age).toBe(31);
+    expect(reparsed.targetWeightKg).toBe(74);
   });
 
   it("caps emphasis at two muscle groups", () => {

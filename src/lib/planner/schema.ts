@@ -71,8 +71,23 @@ export const planRequestSchema = z.object({
   // existed. And the form must keep its "just press generate" path: absent
   // fields are omitted from the prompt entirely rather than sent as "unknown".
   bodyweightKg: z.number().min(30).max(250).optional(),
-  targetWeightKg: z.number().min(30).max(250).optional(),
-  age: z.number().int().min(13).max(100).optional(),
+
+  // What the trainee is eating for, asked outright.
+  //
+  // This replaced `targetWeightKg` on 2026-08-11. The target weight was only
+  // ever collected to derive exactly this enum, and it did so badly: it needed
+  // BOTH weights to say anything, so a trainee who gave one and not the other
+  // got silence. Asking the question directly costs one field instead of two
+  // and cannot return null for want of an unrelated number.
+  phase: z.enum(["cut", "maintain", "bulk"]).optional(),
+
+  // The rep range and rest to program, when the trainee would rather say than
+  // have it read out of their goal sentence. Absent means classify the text.
+  //
+  // Added because the classifier is a guess by construction and the form's own
+  // default goal text was being guessed wrong — see prescription.ts.
+  goalKind: z.enum(["strength", "hypertrophy", "endurance"]).optional(),
+
   currentLifts: currentLiftsSchema.optional(),
   // Capped at two: emphasising everything emphasises nothing, and every focus
   // group widens the candidate query it rides on.
@@ -81,6 +96,26 @@ export const planRequestSchema = z.object({
   // around, not one preference among many in a paragraph.
   injuries: z.string().max(200).optional(),
   notes: z.string().max(500).optional(),
+
+  // ---- Retired fields, still parsed --------------------------------------
+  //
+  // Neither is on the form any more (2026-08-11). They stay in the schema
+  // because they are not dead weight but DATA: several actions re-parse a
+  // stored request in place — `planRequestSchema.parse({ ...row.request, … })`
+  // in the swap and rejection actions — and zod strips what it does not know.
+  // Dropping the keys here would quietly delete them from every plan made
+  // before today, the first time its owner swapped an exercise.
+  //
+  // `targetWeightKg` is superseded by `phase`, which `resolvePhase` still
+  // derives from it for requests that predate the enum.
+  targetWeightKg: z.number().min(30).max(250).optional(),
+  // `age` is cut outright: its only consumer was a bare `- Age: 31` prompt
+  // line with no instruction attached, so whatever it changed was the model's
+  // own stereotype rather than anything this app asked for. The cases that
+  // genuinely alter programming — slow recovery, cranky joints — are what
+  // `injuries` and `notes` say explicitly, and the prompt has hard rules for
+  // those. See knowledge/systems/trainee-profile.md.
+  age: z.number().int().min(13).max(100).optional(),
 
   // Exercise template ids the trainee has swapped away from on this plan.
   //

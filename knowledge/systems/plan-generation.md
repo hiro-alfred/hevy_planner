@@ -35,8 +35,14 @@ generators and one validator.
 
 ## The volume model (`prescription.ts`)
 
-Goal text is classified (strength / hypertrophy / endurance) into a rep range
-and rest. Then a session's time budget is split across two dials:
+The goal kind (strength / hypertrophy / endurance) becomes a rep range and rest.
+It is **stated** when the request carries `goalKind`, and only classified out of
+the free text when it does not — see [[trainee-profile]] for why the field
+exists and what the classifier used to get wrong. The classifier now weighs how
+many keywords each kind matches instead of returning on the first pattern to
+hit, and hypertrophy keeps ties as the documented safe default.
+
+Then a session's time budget is split across two dials:
 
 ```
 setSeconds   = 45s work + that exercise's rest
@@ -60,9 +66,33 @@ validator agree by construction rather than by coincidence.
 Zod guarantees the shape; `validatePlan` checks what Zod cannot: every
 `exerciseTemplateId` resolves in the cached catalog, the day count matches the
 request, each session lands within ±20% of the requested length, no exercise the
-trainee rejected on this plan has come back ([[exercise-alternatives]]), and no
-rep range is reversed. Violations are plain sentences because they are fed
-straight back to the model on the retry.
+trainee rejected on this plan has come back ([[exercise-alternatives]]), no day
+is lopsided (below), and no rep range is reversed. Violations are plain sentences
+because they are fed straight back to the model on the retry.
+
+**The lopsided-day rule is deliberately the narrowest one that catches anything
+real.** It fires only when BOTH halves hold: some muscle is the primary of three
+or more of the day's exercises, AND some muscle the day was built to train is not
+reached at all — not even as a secondary. Either half alone is normal. Three quad
+movements on a legs day is a legs day; a missing group on a three-exercise
+full-body day is the session length talking, not the exercise choice. Only
+together do they say the day had room and spent it badly. The narrowness is not
+fastidiousness: a violation costs a whole extra LLM generation on the retry, and
+the rule-based fallback is validated against these same checks, so a noisy rule
+would have the offline generator reporting problems with its own output. This is
+the generation-time half of what the swap picker does one exercise at a time
+([[exercise-alternatives]]).
+
+Verified both directions on the real 452-template catalog, with a hand-seeded
+push day rendered in a browser. Three chest flys plus a **Triceps Dip** produced
+no complaint — the dip carries `shoulders` as a secondary, so nothing was
+missed. Changing only that exercise to a **Triceps Extension (Cable)**, whose
+secondary list is empty, produced: *"Day 1 (Push) has 3 chest exercises but
+nothing at all for shoulders."* Worth knowing how narrow that makes it in
+practice: every barbell press in the live catalog lists shoulders and triceps as
+secondaries, so a day built from compounds essentially cannot trip this rule.
+That is the intent, not a gap — it fires on isolation-stacked days, which are the
+ones that actually lose a muscle group.
 
 The plan detail page re-runs validation on every render instead of storing a
 verdict — the catalog can change under a saved plan, and a stale "looks fine"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FOCUS_MUSCLE_GROUPS, muscleGroupLabel } from "@/lib/planner/profile";
+import { derivePhase, FOCUS_MUSCLE_GROUPS, muscleGroupLabel } from "@/lib/planner/profile";
 import type { PlanRequest } from "@/lib/planner/schema";
 import { Field, LABEL_CLASSES, Section } from "./field";
 
@@ -66,10 +66,23 @@ function NumberField({
   );
 }
 
+const PHASES = [
+  { value: "", label: "Not sure / doesn't matter" },
+  { value: "cut", label: "Losing weight" },
+  { value: "maintain", label: "Holding weight" },
+  { value: "bulk", label: "Gaining weight" },
+];
+
+/** A request stored before `phase` existed still implies one; show that. */
+function phaseValue(defaults?: PlanRequest): string {
+  if (!defaults) return "";
+  return defaults.phase ?? derivePhase(defaults) ?? "";
+}
+
 export function AboutYouFields({ defaults }: { defaults?: PlanRequest }) {
   return (
     <Section title="About you" note="Optional — sharpens load suggestions and pacing.">
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <NumberField
           name="bodyweightKg"
           label="Bodyweight (kg)"
@@ -78,25 +91,28 @@ export function AboutYouFields({ defaults }: { defaults?: PlanRequest }) {
           placeholder="82"
           defaultValue={numberValue(defaults?.bodyweightKg)}
         />
-        <NumberField
-          name="targetWeightKg"
-          label="Target weight (kg)"
-          min={30}
-          max={250}
-          placeholder="78"
-          defaultValue={numberValue(defaults?.targetWeightKg)}
-        />
-        {/* The one genuinely whole-numbered field, so it keeps a step of 1;
-            min={13} makes every integer in range valid. */}
-        <NumberField
-          name="age"
-          label="Age"
-          min={13}
-          max={100}
-          step={1}
-          placeholder="31"
-          defaultValue={numberValue(defaults?.age)}
-        />
+        {/* Asked outright rather than inferred from a target weight, which was
+            the old field's whole job and needed two numbers to do it. An edit of
+            a plan made before this existed shows the phase that request implied,
+            so the fork keeps the plan it had. */}
+        <Field
+          label="Right now you are"
+          htmlFor="phase"
+          hint="A deficit means holding load rather than chasing PRs; a surplus licenses adding it."
+        >
+          <select
+            id="phase"
+            name="phase"
+            defaultValue={phaseValue(defaults)}
+            className="ui-field"
+          >
+            {PHASES.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </Field>
       </div>
     </Section>
   );

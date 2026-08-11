@@ -7,18 +7,49 @@ import type { PlanRequest } from "./schema";
 
 export type GoalKind = "strength" | "hypertrophy" | "endurance";
 
+/**
+ * Keyword evidence for each goal kind, most-preferred first.
+ *
+ * Order is the tie-break, and hypertrophy leads because it is the documented
+ * safe default: 8–12 at 90 s is the sane middle between 3–6 and 12–20, so a
+ * goal that genuinely names two things lands there rather than at an extreme.
+ *
+ * "build" used to be a hypertrophy keyword and is not one — it is a generic
+ * verb that "build strength" and "build a base" wear just as well.
+ */
 const GOAL_KEYWORDS: Array<[GoalKind, RegExp]> = [
-  ["strength", /\b(strength|strong(er|est)?|powerlift\w*|power|1rm|max|heavy)\b/i],
-  ["endurance", /\b(endurance|stamina|conditioning|cut|lean|fat.?loss|tone)\b/i],
-  ["hypertrophy", /\b(hypertroph|muscle|mass|size|bulk|grow|build)\b/i],
+  ["hypertrophy", /\b(hypertroph\w*|muscle|mass|size|bulk\w*|grow\w*|aesthetic\w*)\b/gi],
+  ["strength", /\b(strength|strong(er|est)?|powerlift\w*|power|1rm|max|heavy)\b/gi],
+  ["endurance", /\b(endurance|stamina|conditioning|cut|lean|fat.?loss|los(e|ing) fat|tone)\b/gi],
 ];
 
-/** Best-effort read of the free-text goal; hypertrophy is the safe default. */
+/**
+ * Best-effort read of the free-text goal; hypertrophy is the safe default.
+ *
+ * Weight of evidence, not first match. First-match is what made the form's own
+ * default text — "Build muscle and get stronger" — generate a 3–6 rep, 180 s
+ * STRENGTH plan: the strength pattern was simply tested first, and "stronger"
+ * hit it. A form whose untouched default contradicts its own wording is a bug on
+ * any reading, and counting hits fixes it without hard-coding that one string.
+ *
+ * The real cure is `goalKind` on the request, which skips this function
+ * entirely; this stays the fallback for free text and for stored requests made
+ * before that field existed.
+ */
 export function classifyGoal(goal: string): GoalKind {
+  let best: GoalKind = "hypertrophy";
+  let bestHits = 0;
+
   for (const [kind, pattern] of GOAL_KEYWORDS) {
-    if (pattern.test(goal)) return kind;
+    const hits = (goal.match(pattern) ?? []).length;
+    // Strictly greater, so an earlier (more-preferred) kind keeps a tie.
+    if (hits > bestHits) {
+      best = kind;
+      bestHits = hits;
+    }
   }
-  return "hypertrophy";
+
+  return best;
 }
 
 export interface Prescription {
@@ -41,8 +72,15 @@ export const BY_GOAL: Record<GoalKind, Omit<Prescription, "goalKind">> = {
   endurance: { repRange: { start: 12, end: 20 }, restSeconds: 60 },
 };
 
+/**
+ * The numbers a request implies.
+ *
+ * An explicit `goalKind` wins outright: someone who picked "Strength" from a
+ * three-item list has said something the free text can only be guessed at, and
+ * a classifier that could overrule them would make the control a decoration.
+ */
 export function prescribe(request: PlanRequest): Prescription {
-  const goalKind = classifyGoal(request.goal);
+  const goalKind = request.goalKind ?? classifyGoal(request.goal);
   return { goalKind, ...BY_GOAL[goalKind] };
 }
 

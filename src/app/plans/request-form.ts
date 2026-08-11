@@ -39,6 +39,11 @@ function parseCurrentLifts(formData: FormData) {
  * form is the reason this exists: `excludedExercises` is built by swapping, has
  * no input, and a fork that dropped it would re-suggest every exercise the user
  * has already rejected.
+ *
+ * The retired fields (`age`, `targetWeightKg`) are deliberately NOT carried. A
+ * fork is a fresh request, and the edit form already shows the phase the old
+ * target weight implied — so what those numbers meant survives as the answer
+ * they were being used to guess, rather than as two inputs nobody sees.
  */
 export function parseRequest(
   formData: FormData,
@@ -56,8 +61,8 @@ export function parseRequest(
     equipment: formData.getAll("equipment").map(String),
 
     bodyweightKg: optionalNumber(formData.get("bodyweightKg")),
-    targetWeightKg: optionalNumber(formData.get("targetWeightKg")),
-    age: optionalNumber(formData.get("age")),
+    phase: optionalText(formData.get("phase")),
+    goalKind: optionalText(formData.get("goalKind")),
     currentLifts: parseCurrentLifts(formData),
     focusMuscleGroups: focus.length > 0 ? focus : undefined,
     injuries: optionalText(formData.get("injuries")),
@@ -66,4 +71,4 @@ export function parseRequest(
 }
 
 export const REQUEST_FORM_ERROR =
-  "Check the form: a goal and at least one equipment option are required, and the optional numbers must be realistic (bodyweight 30–250 kg, age 13–100, at most two focus areas).";
+  "Check the form: a goal and at least one equipment option are required, and the optional numbers must be realistic (bodyweight 30–250 kg, at most two focus areas).";

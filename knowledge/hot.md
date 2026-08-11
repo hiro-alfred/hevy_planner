@@ -32,14 +32,30 @@ production build on a throwaway MariaDB with hand-seeded history, both pages
 screenshotted, every recommendation branch (add weight / add reps / stall deload /
 bodyweight / insufficient data) rendered, and an unknown exercise id 404ing.
 
-**Two decisions are still waiting on the owner**, both carried over:
-1. The intake-parameter review ([[trainee-profile]]) recommending that `age` be CUT,
-   `targetWeightKg` reshaped into a `phase` enum, and an explicit `goalKind` override
-   added. It overturns recorded decisions, so it is the owner's call.
-2. The live `classifyGoal` bug, which is a bug on any reading: the plan form's own
-   default goal text, "Build muscle and get stronger", matches the STRENGTH regex
-   before the hypertrophy one, so an untouched form generates a 3–6 rep / 180 s
-   strength plan while saying "Build muscle".
+**Both carried-over decisions are now CLOSED** — the owner delegated them
+("do whatever you think is right for both") on 2026-08-11 and all of it shipped:
+
+1. The intake-parameter review ([[trainee-profile]]) was **taken in full**. `age`
+   is cut, `targetWeightKg` is replaced by an explicit `phase` enum, and a
+   `goalKind` override was added. Both retired fields stay in
+   `planRequestSchema` — the swap actions re-parse stored requests in place and
+   zod strips what it does not know, so removing the keys would have deleted
+   them from every existing plan on its next swap.
+2. The `classifyGoal` default-text bug is **fixed twice over**: the classifier
+   now counts keyword evidence instead of returning on the first pattern (and
+   "build" is no longer a hypertrophy word), and `goalKind` skips it entirely
+   when set. The form defaults the new select to "Read it from what I wrote".
+
+Also this round: the **swap picker now ranks against the DAY**
+([[exercise-alternatives]]), so a replacement can neither strip a muscle of the
+work the day was giving it nor pile onto one the day already hammers; and
+`validatePlan` gained the generation-time half of the same rule.
+
+**What was actually run**: the rebuilt plan form was screenshotted against the
+throwaway DB (age and target weight gone, phase and rep-range selects in place),
+and the lopsided-day rule was verified BOTH directions on the real 452-template
+catalog with a hand-seeded push day. Not run: the swap picker's new caveat line,
+which needs a click no tool here can perform.
 
 ## State reached
 - **Records, the history cache and the progression engine are built and run.**
@@ -116,8 +132,6 @@ path; a Git-Bash `/c/...` path fails with "Access is denied".
 > cannot already exist in it.
 
 ## Next steps
-0. **Owner decides on the two carried-over items** in Active task (intake-parameter
-   review, and the `classifyGoal` default-text bug — a bug on any reading).
 1. **Owner fixes `DATABASE_URL` in `.env`** so `npm run dev` boots against the real
    database again. Migrations `0001` and `0002` apply on that boot.
 2. **Sync workout history against the real Hevy account** from `/records` — the first
@@ -128,5 +142,8 @@ path; a Git-Bash `/c/...` path fails with "Access is denied".
 4. **Sync one 2-day plan to Hevy.** First write to the live account; irreversible.
 5. Consider feeding records back into generation — `rules.ts` still leaves starting
    loads blank on the now-obsolete grounds that "the app has no lifting history yet".
+5a. **Click the swap picker once.** Its new caveat line ("Leaves shoulders untrained
+   on this day") has never been rendered — opening the picker needs a click and
+   there is no browser driver here, so headless Chrome cannot reach it.
 6. Decide what to do with the compose stack (`docker compose down [-v]`), pick the
    VPS, add a `mysqldump` backup cron, and ask about deleting `data/`.

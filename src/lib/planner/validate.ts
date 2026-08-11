@@ -1,6 +1,7 @@
 import type { CatalogRow } from "@/lib/hevy/catalog";
 import { sessionSeconds } from "./prescription";
-import type { Plan, PlanRequest } from "./schema";
+import type { Plan, PlanDay, PlanRequest } from "./schema";
+import { buildTrainingDays } from "./split";
 
 // Post-validation for a generated plan (knowledge/decisions/plan-pipeline.md,
 // stage 3). Zod already guarantees the SHAPE; these are the checks Zod cannot
@@ -12,6 +13,52 @@ import type { Plan, PlanRequest } from "./schema";
 
 /** A generated session may miss the requested length by this much either way. */
 const SESSION_LENGTH_TOLERANCE = 0.2;
+
+/** Exercises on one primary muscle before a day is leaning on it. */
+const CROWDING_THRESHOLD = 3;
+
+/** A day targeting fewer groups than this is allowed to be lopsided. */
+const MIN_TARGETS_TO_JUDGE = 3;
+
+/**
+ * Flags a day that spent its exercises on one muscle while missing another it
+ * was built to train.
+ *
+ * Deliberately the narrowest rule that still catches something real, because a
+ * violation is not free: it costs a whole extra LLM generation on the retry, and
+ * the rule-based fallback is validated against these same checks, so a noisy
+ * rule would make the offline generator report problems with its own output.
+ *
+ * Both halves must hold. Crowding alone is normal — a legs day with squat, leg
+ * press and extension is three quad movements and nobody is upset. A missing
+ * group alone is normal too — a 3-exercise full-body day cannot reach six groups,
+ * and secondary work covers more of them than the exercise count suggests. It is
+ * only the two TOGETHER that say the day had room and spent it badly.
+ */
+function crowdedDay(day: PlanDay, targets: string[], catalog: Map<string, CatalogRow>): string | null {
+  if (targets.length < MIN_TARGETS_TO_JUDGE) return null;
+
+  const rows = day.exercises.map((e) => catalog.get(e.exerciseTemplateId)).filter(Boolean);
+  const primaryCounts = new Map<string, number>();
+  const touched = new Set<string>();
+  for (const row of rows as CatalogRow[]) {
+    primaryCounts.set(row.primaryMuscleGroup, (primaryCounts.get(row.primaryMuscleGroup) ?? 0) + 1);
+    touched.add(row.primaryMuscleGroup);
+    for (const group of row.secondaryMuscleGroups ?? []) touched.add(group);
+  }
+
+  const crowded = [...primaryCounts].filter(([, n]) => n >= CROWDING_THRESHOLD).map(([g]) => g);
+  // Untouched means untouched: a group reached even as a SECONDARY is covered
+  // for this purpose, which is what keeps quad-heavy legs days out of the net.
+  const missed = targets.filter((group) => !touched.has(group));
+  if (crowded.length === 0 || missed.length === 0) return null;
+
+  return (
+    `has ${crowded.map((g) => `${primaryCounts.get(g)} ${g.replace(/_/g, " ")} exercises`).join(" and ")} ` +
+    `but nothing at all for ${missed.map((g) => g.replace(/_/g, " ")).join(", ")}. ` +
+    `Replace one of the duplicates with a movement for the missing group`
+  );
+}
 
 export function collectTemplateIds(plan: Plan): string[] {
   return plan.days.flatMap((day) => day.exercises.map((exercise) => exercise.exerciseTemplateId));
@@ -74,7 +121,20 @@ export function validatePlan(
     }
   }
 
-  // 5. Rep ranges must be the right way round — Hevy accepts start > end and
+  // 5. A day must not spend its exercises on one muscle while skipping another
+  //    it was built to train. The swap picker enforces this one exercise at a
+  //    time (knowledge/decisions/exercise-alternatives.md); this is the same
+  //    rule at the point the day is first written, so a lopsided day is caught
+  //    before anyone has to repair it by hand.
+  const targets = buildTrainingDays(request);
+  plan.days.forEach((day, index) => {
+    const problem = crowdedDay(day, targets[index]?.muscleGroups ?? [], catalog);
+    if (problem) {
+      violations.push(`Day ${index + 1} ("${day.title}") ${problem}.`);
+    }
+  });
+
+  // 6. Rep ranges must be the right way round — Hevy accepts start > end and
   //    then renders nonsense.
   plan.days.forEach((day, dayIndex) => {
     day.exercises.forEach((exercise) => {

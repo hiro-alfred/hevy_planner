@@ -38,8 +38,10 @@ the top does the weight move and the reps reset to the bottom.
 **Rep band is inferred from behaviour, not asked for.** Median reps over the last three
 sessions, snapped to a `prescription.ts` band. Someone doing sets of 5 is training
 strength whatever a plan's free-text goal says. Median rather than mean so one AMRAP
-set at the end of a session cannot reclassify the exercise — which matters given the
-`classifyGoal` default-text bug recorded in [[trainee-profile]].
+set at the end of a session cannot reclassify the exercise. This independence was
+worth having: the `classifyGoal` default-text bug ([[trainee-profile]], fixed
+2026-08-11) mislabelled plans for weeks without ever misleading the recommendations
+here, because they read the log rather than the request.
 
 Rules, in precedence order, judged against the sets at the session's **hardest load**
 (a back-off set is not evidence about the working weight):

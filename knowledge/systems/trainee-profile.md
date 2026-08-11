@@ -4,10 +4,12 @@ aliases: [profile, intake, intake form, body metrics, current lifts]
 tags: [subsystem, planner, form, llm]
 type: subsystem
 created: 2026-08-08
-updated: 2026-08-08
+updated: 2026-08-11
 sources:
   [
     src/lib/planner/profile.ts,
+    src/lib/planner/prescription.ts,
+    src/app/plans/request-form.ts,
     src/lib/planner/schema.ts,
     src/lib/planner/prompt.ts,
     src/lib/planner/generate.ts,
@@ -36,22 +38,84 @@ thorough was rejected — see the bottom of this page.
 | `currentLifts` (squat/bench/deadlift/OHP) | Unlocks `weightKg`. Accessory loads are extrapolated from the anchors. |
 | `injuries` | Hard exclusion of provoking patterns, forced substitution, raised rep floor, per-exercise caution in `notes`. |
 | `bodyweightKg` | Bodyweight-relative loads; feasibility (pull-up versus pulldown). |
-| `targetWeightKg` | Never sent raw — derives a phase. |
-| `age` | Warm-up volume, joint-friendly variants, conservative at the extremes. |
+| `phase` (cut/maintain/bulk) | A guidance sentence: hold load in a deficit, add it in a surplus. |
+| `goalKind` | Sets the rep range and rest outright, instead of classifying the goal text. |
 | `focusMuscleGroups` (max 2) | Two to four extra weekly sets, and widens the candidate query. |
 | `notes` | Free text: aversions, concurrent training, schedule. Constraints stated here are treated as hard. |
 
-## Derived, never asked
+## The 2026-08-11 review
 
-`derivePhase` in `profile.ts` reads current versus target bodyweight into
-`cut` / `maintain` / `bulk`, with a ±2 kg maintenance band. **The raw target
-weight never reaches the model** — only the phase and its guidance sentence.
-That is the only reason the field is collected.
+An intake-parameter review recommended three changes; all three shipped, and
+each overturned something recorded on this page. Together they take the form
+from two number boxes that were guessed at to two questions asked outright.
 
-Verified on a real generation: bodyweight 88, target 80 produced a plan titled
-"4-Day Upper/Lower Strength — Cut" whose progression paragraph reads "hold onto
-muscle and strength while losing fat; aggressive progression is not the
-priority". The string `80` appears nowhere in the plan.
+**`age` is cut.** Its only consumer was a bare `- Age: 31` prompt line with no
+instruction attached — unlike `phase`, which always carried its guidance
+sentence. So whatever age changed came from the model's own assumptions about a
+number, not from a rule this app wrote down; the table above claimed warm-up
+volume and joint-friendly variants, and nothing implemented either. The cases
+that genuinely change programming — slow recovery, cranky joints — are what
+`injuries` and `notes` say in words, and the prompt has hard rules for those.
+Reversible: re-adding the field is a form input and a prompt line, and this time
+it would need a guidance sentence to earn them.
+
+**`targetWeightKg` is replaced by `phase`.** The target weight was only ever
+collected to derive `cut`/`maintain`/`bulk`, and it did that badly: it needed
+BOTH weights, so a trainee who gave a bodyweight and no target got no phase at
+all. One question replaces two numbers and cannot go silent for want of an
+unrelated one.
+
+**`goalKind` is added** — see the bug below.
+
+> [!warning] Retired does not mean deleted
+> `age` and `targetWeightKg` are gone from the form, the parser and the prompt,
+> but they are **still in `planRequestSchema`**, because several actions
+> re-parse a stored request in place — `parse({ ...row.request, … })` in the
+> swap and rejection actions — and zod strips what it does not know. Dropping
+> the keys would have deleted them from every plan made before that day, the
+> first time its owner swapped an exercise. `resolvePhase` still reads
+> `derivePhase` for those older requests, so a regenerate reproduces the plan it
+> made the first time.
+
+## The goal-classification bug, and the field that fixes it
+
+The form's own default goal text, "Build muscle and get stronger", classified as
+**strength**: `classifyGoal` returned on the first pattern to match, strength was
+tested first, and "stronger" hit it. An untouched form therefore generated a 3–6
+rep, 180-second plan while the box above it said "Build muscle". A bug on any
+reading, live from the first build until 2026-08-11.
+
+Fixed in two places, because either alone would be half a fix:
+
+- the classifier now **counts** how many keywords each kind matches and takes
+  the most evidence, with hypertrophy keeping ties as the documented safe
+  default. "build" is no longer a hypertrophy keyword — it is a generic verb
+  that "build strength" wears just as well;
+- `goalKind` on the request **skips the classifier entirely** when set. The form
+  defaults it to "Read it from what I wrote", so the free text keeps meaning
+  something; picking one pins the rep range beyond argument.
+
+A classifier is a guess by construction. Fixing this instance without offering a
+way to say the thing outright would only move the next wrong guess somewhere
+harder to notice.
+
+## Phase, and what a derived one used to cost
+
+`resolvePhase` returns the stated `phase`, or falls back to `derivePhase` —
+current versus target bodyweight, ±2 kg maintenance band — for requests stored
+before the enum existed. Either way **only the phase and its guidance sentence
+reach the model**, never a weight.
+
+Verified on a real generation, back when it was derived: bodyweight 88, target 80
+produced a plan titled "4-Day Upper/Lower Strength — Cut" whose progression
+paragraph reads "hold onto muscle and strength while losing fat; aggressive
+progression is not the priority". The string `80` appears nowhere in the plan.
+That evidence still stands — what changed is how the phase is arrived at, not
+what it does once it has been.
+
+Editing an old plan's request **migrates it**: the form shows the phase those
+two weights implied, so the fork stores it as an answer instead of as two
+numbers nobody sees any more.
 
 ## Why everything is optional
 
@@ -123,6 +187,10 @@ shoulder" and "neutral grip to reduce shoulder stress".
   build were all green over it.
 - Empty optional inputs arrive as `""` and must become `undefined`, never `0` —
   a bodyweight of zero is a lie the model would act on.
+- **A retired field cannot simply leave the schema.** Zod strips unknown keys,
+  and the swap and rejection actions re-parse a stored request in place, so a
+  removed key is silently deleted from old plans on the next swap. Retire from
+  the form, the parser and the prompt; keep the key.
 
 ## Rejected fields
 

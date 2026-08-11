@@ -27,6 +27,20 @@ const EXPERIENCE = [
 ];
 
 /**
+ * The rep range and rest, statable rather than guessable.
+ *
+ * "Read it from what I wrote" stays the default so the sentence above keeps
+ * meaning something — a select that silently overrode the text would be worse
+ * than the guessing it replaced. Picking one pins it beyond argument.
+ */
+const GOAL_KINDS = [
+  { value: "", label: "Read it from what I wrote" },
+  { value: "hypertrophy", label: "Muscle — 8-12 reps, 90s rest" },
+  { value: "strength", label: "Strength — 3-6 reps, 3min rest" },
+  { value: "endurance", label: "Endurance — 12-20 reps, 60s rest" },
+];
+
+/**
  * Plan request form. Generation runs inside the server action and can take a
  * while with an LLM configured, so the submit button carries the pending state.
  *
@@ -64,6 +78,25 @@ export function PlanForm({
           defaultValue={defaults?.goal ?? "Build muscle and get stronger"}
           className="ui-field"
         />
+      </Field>
+
+      <Field
+        label="Rep ranges"
+        htmlFor="goalKind"
+        hint="Override the reading above if it is not what you meant."
+      >
+        <select
+          id="goalKind"
+          name="goalKind"
+          defaultValue={defaults?.goalKind ?? ""}
+          className="ui-field"
+        >
+          {GOAL_KINDS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       </Field>
 
       <div className="grid gap-6 sm:grid-cols-2">

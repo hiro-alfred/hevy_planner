@@ -2,11 +2,11 @@ import type { CatalogRow } from "@/lib/hevy/catalog";
 import { EQUIPMENT_LABELS, type EquipmentCategory } from "@/lib/hevy/constants";
 import { planVolume, prescribe, SECONDS_PER_SET } from "./prescription";
 import {
-  derivePhase,
   describeLifts,
   describePhase,
   hasAnchors,
   muscleGroupLabel,
+  resolvePhase,
 } from "./profile";
 import type { PlanRequest } from "./schema";
 import type { TrainingDayTemplate } from "./split";
@@ -98,13 +98,13 @@ function profileLines(request: PlanRequest): string[] {
   if (request.bodyweightKg !== undefined) {
     lines.push(`- Bodyweight: ${request.bodyweightKg} kg`);
   }
-  if (request.age !== undefined) {
-    lines.push(`- Age: ${request.age}`);
-  }
 
-  const phase = derivePhase(request);
+  // Age is deliberately not sent. It was a bare number with no instruction
+  // attached, so anything it changed came from the model's own assumptions
+  // about a number rather than from a rule this app wrote down.
+  const phase = resolvePhase(request);
   if (phase) {
-    // The target weight itself is never sent — only what it implies.
+    // Never the raw weights — only what the phase means for programming.
     lines.push(`- Phase: ${phase}. ${describePhase(phase)}`);
   }
 
