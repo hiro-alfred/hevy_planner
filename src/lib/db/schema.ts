@@ -1,4 +1,13 @@
-import { boolean, int, mysqlEnum, mysqlTable, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import {
+  boolean,
+  double,
+  index,
+  int,
+  mysqlEnum,
+  mysqlTable,
+  uniqueIndex,
+  varchar,
+} from "drizzle-orm/mysql-core";
 import { json } from "./json-column";
 import type { Plan, PlanRequest } from "@/lib/planner/schema";
 
@@ -80,4 +89,63 @@ export const syncLinks = mysqlTable(
   // protects the database, not Hevy. Preventing the duplicate write itself is
   // the job of the lock in lib/hevy/plan-lock.ts.
   (table) => [uniqueIndex("sync_links_plan_day").on(table.planId, table.dayIndex)],
+);
+
+// Local mirror of the account's completed workouts, kept current by the
+// /v1/workouts/events delta feed. STRICTLY read-only with respect to Hevy:
+// nothing in these two tables is ever pushed back.
+//
+// A cache rather than on-demand fetching, because /records has to aggregate
+// across EVERY exercise at once and the workouts endpoint caps pageSize at 10 —
+// answering "what are my PRs" over the network would be hundreds of requests per
+// page view. One explicit backfill, then deltas.
+export const workouts = mysqlTable("workouts", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  routineId: varchar("routine_id", { length: 64 }),
+  startTime: varchar("start_time", { length: 32 }).notNull(),
+  endTime: varchar("end_time", { length: 32 }),
+  // The cursor source: `events?since=` compares against this, so the sync stores
+  // the largest value it has seen rather than its own clock. Using local time
+  // would skip every workout logged while the two disagreed.
+  hevyUpdatedAt: varchar("hevy_updated_at", { length: 32 }).notNull(),
+  fetchedAt: varchar("fetched_at", { length: 32 }).notNull(),
+});
+
+// One row per logged set, flattened out of workout.exercises[].sets[]. Flat
+// because every records query groups by exercise across all workouts, which a
+// JSON blob per workout could not index.
+export const workoutSets = mysqlTable(
+  "workout_sets",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    workoutId: varchar("workout_id", { length: 64 })
+      .notNull()
+      .references(() => workouts.id),
+    exerciseTemplateId: varchar("exercise_template_id", { length: 64 }).notNull(),
+    // Denormalised from the workout payload on purpose, NOT joined from
+    // exercise_templates: history can reference templates the catalog no longer
+    // has (a deleted custom exercise), and a record must not disappear from the
+    // page because the catalog cache is stale or was never refreshed.
+    exerciseTitle: varchar("exercise_title", { length: 255 }).notNull(),
+    exerciseIndex: int("exercise_index").notNull(),
+    setIndex: int("set_index").notNull(),
+    // warmup | normal | failure | dropset, but stored as free text: an unknown
+    // value from upstream must cache rather than abort the walk.
+    setType: varchar("set_type", { length: 32 }).notNull(),
+    // Nullable throughout: a set carries only the metrics its exercise type
+    // uses, so bodyweight sets have reps and no weight, planks the reverse.
+    weightKg: double("weight_kg"),
+    reps: int("reps"),
+    rpe: double("rpe"),
+    durationSeconds: int("duration_seconds"),
+    distanceMeters: int("distance_meters"),
+  },
+  (table) => [
+    // Every records query filters or groups by template id.
+    index("workout_sets_template").on(table.exerciseTemplateId),
+    // A delta event replaces one workout's sets wholesale; without this the
+    // delete would scan the entire history table on every update event.
+    index("workout_sets_workout").on(table.workoutId),
+  ],
 );

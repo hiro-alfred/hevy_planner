@@ -65,3 +65,64 @@ export interface HevyRoutineFolder {
   index: number;
   title: string;
 }
+
+// ---------------------------------------------------------------------------
+// Read path: workouts (the logged training history).
+//
+// Routines are what the user PLANS; workouts are what they actually did. Only
+// the latter carries real weights and reps, so every record and every
+// progression recommendation is derived from these shapes.
+//
+// Every numeric field on a set is nullable, and that is not defensive typing:
+// one Hevy set genuinely carries only the metrics its exercise type uses, so a
+// plank set has duration and null weight/reps, while a bodyweight set can have
+// null weight AND real reps.
+// ---------------------------------------------------------------------------
+
+export interface HevyWorkoutSet {
+  index: number;
+  /**
+   * Documented as the same four values as HevySetType, but typed loosely on
+   * purpose: this is a READ, and an unknown fifth value must land in the cache
+   * as-is rather than fail a walk of a decade of training history. Metric code
+   * filters on the known values instead.
+   */
+  type: string;
+  weight_kg: number | null;
+  reps: number | null;
+  distance_meters: number | null;
+  duration_seconds: number | null;
+  rpe: number | null;
+  custom_metric: number | null;
+}
+
+export interface HevyWorkoutExercise {
+  index: number;
+  title: string;
+  notes: string | null;
+  exercise_template_id: string;
+  supersets_id: number | null; // read side is plural — same quirk as routines
+  sets: HevyWorkoutSet[];
+}
+
+export interface HevyWorkout {
+  id: string;
+  title: string;
+  routine_id: string | null;
+  description: string | null;
+  start_time: string;
+  end_time: string | null;
+  /** The delta feed's cursor field: what `events?since=` is compared against. */
+  updated_at: string;
+  created_at: string;
+  exercises: HevyWorkoutExercise[];
+}
+
+/**
+ * One entry from `/v1/workouts/events`. A discriminated union because the two
+ * arms share no fields — a delete carries only an id, so a cache update must
+ * narrow on `type` before touching anything.
+ */
+export type HevyWorkoutEvent =
+  | { type: "updated"; workout: HevyWorkout }
+  | { type: "deleted"; id: string; deleted_at: string };

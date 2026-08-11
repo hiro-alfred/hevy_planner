@@ -3,6 +3,8 @@ import type {
   HevyRoutine,
   HevyRoutineFolder,
   HevyRoutinePayload,
+  HevyWorkout,
+  HevyWorkoutEvent,
 } from "./types";
 
 const BASE_URL = "https://api.hevyapp.com";
@@ -62,6 +64,33 @@ export class HevyClient {
       page_count: number;
       routines: HevyRoutine[];
     }>(`/v1/routines?page=${page}&pageSize=10`);
+  }
+
+  // How many workouts the account holds. Called before a backfill purely so the
+  // UI can say "syncing N workouts" instead of stalling silently for minutes.
+  getWorkoutCount() {
+    return this.request<{ workout_count: number }>("/v1/workouts/count");
+  }
+
+  // The training history. pageSize caps at 10 like routines, so a long history
+  // is hundreds of round trips — only workout-sync.ts calls this, and only on an
+  // explicit user action, never during a page render.
+  getWorkouts(page: number) {
+    return this.request<{
+      page: number;
+      page_count: number;
+      workouts: HevyWorkout[];
+    }>(`/v1/workouts?page=${page}&pageSize=10`);
+  }
+
+  // Delta feed, newest event first. `since` is compared against a workout's
+  // updated_at, and is the reason a full backfill happens only once.
+  getWorkoutEvents(page: number, since: string) {
+    return this.request<{
+      page: number;
+      page_count: number;
+      events: HevyWorkoutEvent[];
+    }>(`/v1/workouts/events?page=${page}&pageSize=10&since=${encodeURIComponent(since)}`);
   }
 
   createRoutineFolder(title: string) {

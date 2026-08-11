@@ -58,6 +58,10 @@ category. Start here; conventions live in [[schema]].
   layering, the one shell width, and the styling traps behind them.
 - [[trainee-profile]] — the optional intake fields, what each one mechanically
   changes, and why height was rejected.
+- [[workout-history]] — the local mirror of logged workouts: backfill vs delta
+  sync, the cursor rules, and why `/v1/exercise_history` is unused.
+- [[exercise-records]] — the `/records` screens: which metrics count as records,
+  why warm-ups never do, and the Epley choice.
 
 ## decisions/
 
@@ -72,3 +76,5 @@ category. Start here; conventions live in [[schema]].
   skills, thin bootstrap.
 - [[exercise-alternatives]] — the repeatable catalog-sourced exercise swap,
   per-plan rejections, and why sync stays safe. BUILT 2026-08-11.
+- [[progressive-overload]] — why the next-session recommendation is a
+  deterministic double-progression engine and not the LLM. BUILT 2026-08-11.

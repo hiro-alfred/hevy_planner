@@ -270,3 +270,21 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   other DB test migrates an empty database and would pass a migration that is
   destructive only on populated data. Lint, `tsc`, 144 vitest tests, 14 wiki tests
   and `next build` green; nothing human-verified.
+- 2026-08-11 — **Records + progressive overload**, at the owner's request, with the
+  feature set designed by a Fable 5 subagent as asked. Two screens on a new local
+  cache of logged workouts ([[workout-history]], [[exercise-records]]) plus a
+  next-session recommendation ([[progressive-overload]]). Three decisions worth
+  keeping: the recommendation is a **deterministic double-progression engine, not
+  the LLM** (progression is arithmetic, and there is still no `LLM_API_KEY` to
+  verify an LLM path against); `/v1/exercise_history` is **unused** because the
+  pinned spec gives it no pagination at all, so `/v1/workouts` + the `events` delta
+  feed is the only bounded way to answer "what are my PRs"; and **warm-ups never
+  count** — a mistyped warm-up weight is precisely the row that invents a fake PR,
+  which the seeded 500 kg set proved. Epley over Brzycki because Brzycki goes
+  negative past 36 reps and real history has 20+-rep sets. Migration `0002` is
+  additive (two new tables). Unlike every round before it, this one **was actually
+  run**: production build against a hand-seeded MariaDB, both pages screenshotted,
+  all recommendation branches rendered, unknown id 404s. Lint, `tsc`, **195 vitest
+  tests** (up from 144), 14 wiki tests and `next build` green. Still unverified
+  against a real Hevy account — every response shape here comes from the spec that
+  [[hevy-api]] has already caught lying once.

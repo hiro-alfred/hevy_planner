@@ -24,6 +24,7 @@ import { decryptSecret, encryptSecret, encryptionEnabled, isEncrypted } from "@/
 export const SETTING_KEYS = {
   hevyApiKey: "hevy_api_key",
   weightUnit: "weight_unit",
+  workoutSyncCursor: "workout_sync_cursor",
 } as const;
 
 /** Settings encrypted at rest. Non-secrets stay readable in a dump on purpose. */
@@ -238,4 +239,24 @@ export async function getWeightUnit(): Promise<WeightUnit> {
 
 export async function setWeightUnit(unit: WeightUnit): Promise<void> {
   await setSetting(SETTING_KEYS.weightUnit, unit);
+}
+
+/**
+ * High-water mark of the workout delta feed: the largest `updated_at` the cache
+ * has ever absorbed. Null means the history has never been synced, which is what
+ * makes the sync choose a full backfill over a delta.
+ *
+ * Not a secret — it stays readable in a dump, like every other non-key setting.
+ */
+export async function getWorkoutSyncCursor(): Promise<string | null> {
+  return getSetting(SETTING_KEYS.workoutSyncCursor);
+}
+
+export async function setWorkoutSyncCursor(cursor: string): Promise<void> {
+  await setSetting(SETTING_KEYS.workoutSyncCursor, cursor);
+}
+
+/** Drops the cursor so the next sync re-walks the whole history from scratch. */
+export async function clearWorkoutSyncCursor(): Promise<void> {
+  await deleteSetting(SETTING_KEYS.workoutSyncCursor);
 }

@@ -15,6 +15,13 @@
       "when": 1786423515210,
       "tag": "0001_mature_siren",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1786425139163,
+      "tag": "0002_mighty_iron_patriot",
+      "breakpoints": true
     }
   ]
 }

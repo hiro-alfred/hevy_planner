@@ -27,7 +27,15 @@ export interface Prescription {
   restSeconds: number;
 }
 
-const BY_GOAL: Record<GoalKind, Omit<Prescription, "goalKind">> = {
+/**
+ * The rep range and rest each goal implies.
+ *
+ * Exported because the progression engine (lib/records/progression.ts) infers a
+ * lifter's current goal from the reps they actually log and then recommends
+ * against the SAME bands the generator prescribes. Two copies of these numbers
+ * would let a plan and its progression advice drift apart silently.
+ */
+export const BY_GOAL: Record<GoalKind, Omit<Prescription, "goalKind">> = {
   strength: { repRange: { start: 3, end: 6 }, restSeconds: 180 },
   hypertrophy: { repRange: { start: 8, end: 12 }, restSeconds: 90 },
   endurance: { repRange: { start: 12, end: 20 }, restSeconds: 60 },

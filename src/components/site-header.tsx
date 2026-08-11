@@ -8,6 +8,7 @@ const NAV = [
   { href: "/", label: "Plans" },
   { href: "/plans/new", label: "New plan" },
   { href: "/routines", label: "In Hevy" },
+  { href: "/records", label: "Records" },
   { href: "/settings", label: "Settings" },
 ];
 
