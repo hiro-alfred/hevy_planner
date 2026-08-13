@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { authConfig } from "@/lib/auth/config";
 import { buildAuthorizeUrl, createHandshakeSecrets } from "@/lib/auth/google";
-import { LOGIN_PATH, safeNextPath } from "@/lib/auth/paths";
+import { LOGIN_PATH, relativeRedirect, safeNextPath } from "@/lib/auth/paths";
 import {
   OAUTH_STATE_COOKIE,
   OAUTH_STATE_TTL_SECONDS,
@@ -27,7 +27,7 @@ export const dynamic = "force-dynamic";
 export function GET(request: NextRequest): NextResponse {
   const result = authConfig();
   if (!result.ok || result.config.mode !== "google" || !result.config.google) {
-    return NextResponse.redirect(new URL(`${LOGIN_PATH}?error=config`, request.nextUrl));
+    return relativeRedirect(`${LOGIN_PATH}?error=config`);
   }
   const { config } = result;
 

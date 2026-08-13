@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { decideGoogleAccess } from "@/lib/auth/authorize";
 import { authConfig } from "@/lib/auth/config";
 import { exchangeCodeForIdToken, verifyGoogleIdToken } from "@/lib/auth/google";
-import { LOGIN_PATH } from "@/lib/auth/paths";
+import { LOGIN_PATH, relativeRedirect } from "@/lib/auth/paths";
 import {
   createSessionToken,
   OAUTH_STATE_COOKIE,
@@ -30,19 +30,18 @@ import {
 
 export const dynamic = "force-dynamic";
 
-function fail(request: NextRequest, code: string): NextResponse {
-  const response = NextResponse.redirect(new URL(`${LOGIN_PATH}?error=${code}`, request.nextUrl));
+function fail(code: string): NextResponse {
+  const response = relativeRedirect(`${LOGIN_PATH}?error=${code}`);
   // Always clear the handshake: it is one-shot, and leaving it set would let a
   // failed attempt's state be replayed.
   response.cookies.delete(OAUTH_STATE_COOKIE);
-  response.headers.set("cache-control", "no-store");
   return response;
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const result = authConfig();
   if (!result.ok || result.config.mode !== "google" || !result.config.google) {
-    return fail(request, "config");
+    return fail("config");
   }
   const { config } = result;
 
@@ -50,15 +49,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     request.cookies.get(OAUTH_STATE_COOKIE)?.value,
     config.sessionKey!,
   );
-  if (!handshake) return fail(request, "state");
+  if (!handshake) return fail("state");
 
   const params = request.nextUrl.searchParams;
   // Google reports user-side refusals here (access_denied); there is no code.
-  if (params.get("error")) return fail(request, "denied");
+  if (params.get("error")) return fail("denied");
 
   const returnedState = params.get("state");
   const code = params.get("code");
-  if (!code || !returnedState || returnedState !== handshake.state) return fail(request, "state");
+  if (!code || !returnedState || returnedState !== handshake.state) return fail("state");
 
   let claims;
   try {
@@ -69,7 +68,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // URI and the client id, which is exactly what a misconfiguration report
     // needs and exactly what a visitor should not be handed.
     console.error("[auth] Google code exchange or id_token verification failed:", error);
-    return fail(request, "exchange");
+    return fail("exchange");
   }
 
   const decision = decideGoogleAccess(
@@ -80,10 +79,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     console.warn(
       `[auth] Google sign-in refused (${decision.reason}) for sub ${claims.sub.slice(0, 8)}…`,
     );
-    return fail(request, "denied");
+    return fail("denied");
   }
 
-  const response = NextResponse.redirect(new URL(handshake.next, request.nextUrl));
+  const response = relativeRedirect(handshake.next);
   response.cookies.set(
     SESSION_COOKIE,
     createSessionToken(decision.identity, config.sessionKey!, config.sessionTtlSeconds),

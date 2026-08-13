@@ -2,6 +2,7 @@
 // sanitised. Pure path logic, no secrets — imported by the proxy, the login page
 // and the OAuth callback so all three agree on one list.
 
+import { NextResponse } from "next/server";
 import { GOOGLE_CALLBACK_PATH } from "./config";
 
 export const LOGIN_PATH = "/login";
@@ -51,6 +52,34 @@ export function isPublicPath(pathname: string): boolean {
  * not — browsers read both as scheme-relative URLs — so the second character is
  * checked, not just the first.
  */
+/**
+ * A redirect whose `Location` is RELATIVE, resolved by the browser against the
+ * request it made.
+ *
+ * Route handlers must not build absolute redirects from `request.nextUrl`. In a
+ * route handler that URL is based on the server's BIND address, not the Host
+ * header — and the Dockerfile binds `HOSTNAME=0.0.0.0`, so the browser was sent
+ * to `http://0.0.0.0:3000/` after a successful Google login and got
+ * ERR_ADDRESS_INVALID. (The proxy is unaffected: its `nextUrl` does follow the
+ * Host header, which is why only the OAuth legs broke.)
+ *
+ * A relative Location sidesteps the question entirely — RFC 7231 §7.1.2 allows
+ * it and every browser resolves it against the request URL, so this stays
+ * correct behind a reverse proxy, on a LAN address, and under any bind host,
+ * with nothing to configure. AUTH_ORIGIN is deliberately NOT used here: it is
+ * the registered OAuth redirect URI, and forcing every redirect through it
+ * would break the moment the app is reached by any other name.
+ */
+export function relativeRedirect(path: string, status: 303 | 307 = 307): NextResponse {
+  // NextResponse rather than a bare Response: the OAuth legs have to set and
+  // clear cookies on the redirect itself. NextResponse.redirect() is not usable
+  // because it demands an absolute URL, which is the whole problem.
+  return new NextResponse(null, {
+    status,
+    headers: { location: path, "cache-control": "no-store" },
+  });
+}
+
 export function safeNextPath(candidate: string | null | undefined): string {
   if (!candidate) return "/";
   if (!candidate.startsWith("/")) return "/";
