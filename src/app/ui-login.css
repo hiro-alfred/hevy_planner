@@ -1,0 +1,279 @@
+/* The sign-in screen.
+ *
+ * A split frame — artwork left, gate right — which is the one place in the app
+ * that gets a full-bleed layout instead of the standard .ui-shell column: there
+ * is no navigation to sit above it and exactly one thing to do on the page.
+ *
+ * The composition is borrowed from a bright-blue reference layout; none of its
+ * colour is. Everything here is drawn from the Graphite palette, with the lime
+ * accent used only as line art at low opacity plus the single primary button —
+ * the same rule the rest of the app follows.
+ */
+
+@layer components {
+  /* ---- frame ----------------------------------------------------------- */
+
+  .ui-login {
+    display: flex;
+    min-height: 100dvh;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(1rem, 4vw, 3rem);
+  }
+
+  .ui-login__frame {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+    max-width: 66rem;
+    overflow: hidden;
+    border: 1px solid var(--color-ui-line);
+    border-radius: 1.125rem;
+    background: var(--color-ui-surface);
+    /* Lifts the frame off a background of nearly the same value; without it the
+     * whole screen reads as one flat sheet. */
+    box-shadow: 0 30px 70px -40px #000;
+  }
+
+  @media (min-width: 60rem) {
+    .ui-login__frame {
+      grid-template-columns: 1.08fr 1fr;
+    }
+  }
+
+  /* ---- artwork half ---------------------------------------------------- */
+
+  .ui-login__art {
+    position: relative;
+    /* Keeps the z-index: -1 on the SVG inside this panel rather than letting it
+     * fall behind the page background. */
+    isolation: isolate;
+    display: flex;
+    min-height: 13rem;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 2.5rem;
+    overflow: hidden;
+    padding: 2rem;
+  }
+
+  @media (min-width: 60rem) {
+    .ui-login__art {
+      min-height: 33rem;
+      padding: 2.75rem;
+    }
+  }
+
+  .ui-login__art-svg {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    height: 100%;
+    width: 100%;
+  }
+
+  .ui-login__brand {
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.75rem;
+    color: var(--color-ui-dim);
+  }
+
+  .ui-login__copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+  }
+
+  .ui-login__kicker {
+    font-size: 0.9375rem;
+    color: var(--color-ui-dim);
+  }
+
+  .ui-login__title {
+    font-size: clamp(2rem, 1.1rem + 3.4vw, 3.25rem);
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    text-transform: uppercase;
+  }
+
+  .ui-login__rule {
+    display: block;
+    width: 3.5rem;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--color-ui-accent);
+  }
+
+  .ui-login__blurb {
+    max-width: 36ch;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: var(--color-ui-dim);
+  }
+
+  /* ---- artwork paints -------------------------------------------------- */
+
+  .ui-login__canvas {
+    fill: url(#ui-login-canvas-grad);
+  }
+
+  .ui-login__stop--base {
+    stop-color: #101315;
+  }
+
+  /* Barely a tint. Any more and the panel stops being graphite and starts being
+   * an olive block, which is the failure mode this palette was chosen against. */
+  .ui-login__stop--tint {
+    stop-color: color-mix(in srgb, var(--color-ui-accent) 5%, #15181b);
+  }
+
+  .ui-login__grid {
+    fill: url(#ui-login-grid-pattern);
+  }
+
+  .ui-login__grid-line {
+    fill: none;
+    stroke: color-mix(in srgb, var(--color-ui-accent) 9%, transparent);
+    stroke-width: 1;
+  }
+
+  .ui-login__ray {
+    fill: none;
+    stroke: color-mix(in srgb, var(--color-ui-accent) 16%, transparent);
+    stroke-width: 1;
+  }
+
+  .ui-login__wave {
+    fill: url(#ui-login-wave-grad);
+  }
+
+  .ui-login__stop--wave-in {
+    stop-color: var(--color-ui-accent);
+    stop-opacity: 0.14;
+  }
+
+  .ui-login__stop--wave-out {
+    stop-color: var(--color-ui-accent);
+    stop-opacity: 0.02;
+  }
+
+  .ui-login__wave--top {
+    opacity: 0.5;
+  }
+
+  .ui-login__wave--mid {
+    opacity: 0.7;
+  }
+
+  .ui-login__wave--low {
+    opacity: 1;
+  }
+
+  /* A hairline along each wave crest — the bands are too low-contrast to read as
+   * shapes on their own, and the line is what makes them look drawn. */
+  .ui-login__crest {
+    fill: none;
+    stroke: color-mix(in srgb, var(--color-ui-accent) 22%, transparent);
+    stroke-width: 1.25;
+  }
+
+  .ui-login__disc {
+    fill: color-mix(in srgb, var(--color-ui-accent) 10%, transparent);
+  }
+
+  .ui-login__ring {
+    fill: none;
+    stroke: color-mix(in srgb, var(--color-ui-accent) 30%, transparent);
+    stroke-width: 1.5;
+  }
+
+  .ui-login__dot {
+    fill: color-mix(in srgb, var(--color-ui-accent) 45%, transparent);
+  }
+
+  /* ---- gate half ------------------------------------------------------- */
+
+  .ui-login__panel {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1.5rem;
+    border-top: 1px solid var(--color-ui-line);
+    background: var(--color-ui-surface);
+    padding: 2rem;
+  }
+
+  @media (min-width: 60rem) {
+    .ui-login__panel {
+      border-top: 0;
+      border-left: 1px solid var(--color-ui-line);
+      padding: 3rem 3.25rem;
+    }
+  }
+
+  .ui-login__panel-head {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .ui-login__heading {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .ui-login__lede {
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: var(--color-ui-dim);
+  }
+
+  /* Wide pill, unlike every other button in the app: this panel holds one
+   * action, and the shape says so. */
+  .ui-login__cta {
+    width: 100%;
+    border-radius: 9999px;
+    padding-block: 0.875rem;
+    font-size: 0.8125rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .ui-login__gmark {
+    display: block;
+    width: 1.0625rem;
+    height: 1.0625rem;
+  }
+
+  /* Google's brand colours — the one palette exception, see art.tsx. */
+  .ui-login__gmark--blue {
+    fill: #4285f4;
+  }
+  .ui-login__gmark--green {
+    fill: #34a853;
+  }
+  .ui-login__gmark--yellow {
+    fill: #fbbc05;
+  }
+  .ui-login__gmark--red {
+    fill: #ea4335;
+  }
+
+  /* The accent bar down the leading edge of each field, which is what the
+   * reference layout uses to mark an input instead of a heavy border. */
+  .ui-login__input {
+    border-left: 3px solid var(--color-ui-accent);
+    border-start-start-radius: 0.25rem;
+    border-end-start-radius: 0.25rem;
+    padding-block: 0.75rem;
+  }
+
+  .ui-login__foot {
+    font-size: 0.78125rem;
+    line-height: 1.6;
+    color: var(--color-ui-faint);
+  }
+}

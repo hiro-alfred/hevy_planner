@@ -4,7 +4,7 @@ aliases: [log, journal]
 tags: [meta, journal]
 type: meta
 created: 2026-08-08
-updated: 2026-08-13
+updated: 2026-08-14
 sources: []
 ---
 
@@ -13,41 +13,6 @@ sources: []
 Append-only journal of ingests, queries, and lint passes ([[schema]]). Newest entries
 at the bottom. When this page nears the 300-line cap, move the oldest entries to
 [[log-archive]].
-
-- 2026-08-08 — **Revamped the UI into a neon-HUD theme** ([[ui-design-system]]):
-  new CSS layer plus six motion components, every page restyled, dark-only by
-  decision rather than by omission. Green checks proved nothing about the look —
-  lint, types, 90 tests and the build all passed while a hover-sweep highlight
-  sat permanently visible on every button and one button stretched full-width.
-  Both were found only by screenshotting the running app, which is now the
-  standard for UI work. Two infrastructure findings worth keeping. (1) Turbopack
-  caches a FAILED `@import` resolution: creating `globals.css` before the
-  `hud.css` it imports left `Can't resolve './hud.css'` surviving a dev-server
-  restart while `next build` succeeded from the same source — clearing `.next`
-  is the fix, and it is the rare case that needs it. (2) A latent `.env`
-  breakage surfaced: a fresh boot dies with `Access denied for user 'hevy'`,
-  though the database and credentials are fine. Next reloads `.env` without
-  re-running `instrumentation.ts`, so the old long-lived server kept a working
-  connection while the file drifted — an app that "still works" is not evidence
-  its config is valid. Recorded as the blocker in [[hot]].
-- 2026-08-08 — **Added the optional trainee profile** ([[trainee-profile]]) and
-  **the LLM path finally ran for real**. A Fable subagent designed the field
-  set; its sharpest move was reading the existing system prompt ("Leave
-  weightKg null — you do not know the trainee's current loads") and choosing
-  the fields that delete that sentence, rather than the body metrics that were
-  asked for. It rejected **height** on the grounds that nothing in the pipeline
-  or in coaching practice consumes it; the owner accepted. Verified on real
-  generations, not unit tests: an injury produced zero overhead pressing across
-  21 exercises, anchors produced populated weights where their absence produced
-  nulls, and a target weight produced a "Cut" plan without the number ever
-  reaching the model. The bug of the session was invisible to every check —
-  `min={1} step={2.5}` on a number input makes 120 a `stepMismatch`, and a form
-  that fails constraint validation **does not submit and displays nothing**;
-  lint, types, 103 tests and the build were all green over a form that could
-  not be submitted. Also measured what the design had only guessed: generation
-  takes 1–3.5 minutes, not 30–60 seconds, which promotes the unbuilt
-  `streamObject` handler from nicety to the worst moment in the product.
-  Separately designed and recorded, unbuilt: [[exercise-alternatives]].
 - 2026-08-09 — **Replaced the neon-HUD with the Graphite theme**
   ([[ui-design-system]]), one day after the HUD landed. The owner said the UI/UX
   was still bad and asked for five designs to choose from; five full mockups
@@ -278,3 +243,30 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   browser, and still shipped a bug that only a human clicking Sign in could find
   — because the pre-deploy environment differed from the deployed one in exactly
   one variable nobody thought to vary.
+- 2026-08-14 — **Redesigned the login page as a split screen** ([[ui-design-system]]).
+  The owner supplied a stock blue "WELCOME BACK" login mockup and asked for that
+  composition in the app's own colours. Layout borrowed, palette not: the reference's
+  blue wave/grid/dot artwork is redrawn as lime line art at ~10–20% over a near-black
+  gradient, so the accent still marks only the primary action. New `ui-login.css`
+  plus `login/art.tsx` (the SVG) and `login/shell.tsx` (the frame every branch renders
+  through, including the "not configured" dead end). **Every SVG fill, stroke and
+  gradient stop is a CSS class, not a presentation attribute** — the no-inline-CSS
+  rule has no SVG exemption, and it means the illustration re-tints with
+  `--color-ui-accent` instead of pinning a colour the palette will drift from.
+  One change outside the page: `SiteHeader` returns `null` on `/login`. The split
+  wants the full viewport, and every link in that nav pointed somewhere a
+  logged-out visitor cannot go.
+  First pass came back **olive**: accent-tinted canvas plus wave fills at 0.85
+  opacity stacked into a green block. Fixed by dropping the fills to near-invisible
+  and adding a stroked crest line along each curve — at this palette a wave reads as
+  a LINE, not as a filled band. Only screenshotting the running app showed it, which
+  is the same lesson as the HUD round.
+  Verification trap worth keeping: **headless Chrome on Windows will not render a
+  viewport narrower than ~500px.** `--window-size=414,896` lays the page out at 500
+  and CROPS the image to 414, which looks exactly like horizontal overflow in a
+  broken responsive layout. `--headless=old` does it too. Re-shooting at 500 showed
+  even margins and no overflow. Logic in `page.tsx` was left alone throughout
+  (redirect-if-signed-in, `force-dynamic`, the error-code map, the server-built
+  authorize link). `tsc`, lint, `next build`, 366 vitest tests, 14 wiki tests green;
+  screenshotted in both auth modes and stacked; `docker compose up -d --build`
+  redeployed :3000 (`/login` 200, `/` 307, boot log clean).

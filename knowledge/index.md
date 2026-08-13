@@ -4,7 +4,7 @@ aliases: [index, hub, catalog]
 tags: [hub]
 type: hub
 created: 2026-08-08
-updated: 2026-08-08
+updated: 2026-08-14
 sources: [knowledge/]
 ---
 
@@ -55,7 +55,8 @@ category. Start here; conventions live in [[schema]].
 - [[deployment]] — standalone build, Docker image shape, the runtime settings
   that break it, and getting a daemon onto the dev machine.
 - [[ui-design-system]] — the Graphite theme: dark-only tokens, the CSS file
-  layering, the one shell width, and the styling traps behind them.
+  layering, the one shell width, the split sign-in screen, and the styling traps
+  behind them.
 - [[trainee-profile]] — the optional intake fields, what each one mechanically
   changes, and why height was rejected.
 - [[workout-history]] — the local mirror of logged workouts: backfill vs delta

@@ -22,6 +22,12 @@ const NAV = [
 export function SiteHeader({ trailing }: { trailing?: ReactNode }) {
   const pathname = usePathname();
 
+  // The sign-in screen is full-bleed and carries its own brand mark, and every
+  // link in this nav leads somewhere the visitor cannot go yet — so the bar is
+  // dropped there rather than hidden with CSS, which would still reserve the
+  // height the split layout wants.
+  if (pathname === "/login") return null;
+
   return (
     <header className="ui-topbar">
       <nav className="mx-auto flex w-full max-w-5xl items-center gap-8 px-8">

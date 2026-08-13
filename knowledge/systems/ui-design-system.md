@@ -4,13 +4,17 @@ aliases: [ui, design system, graphite theme, styling, hud theme]
 tags: [ui, css, frontend, motion]
 type: subsystem
 created: 2026-08-08
-updated: 2026-08-11
+updated: 2026-08-14
 sources:
   [
     src/app/globals.css,
     src/app/ui.css,
     src/app/ui-controls.css,
+    src/app/ui-login.css,
     src/app/animations.css,
+    src/app/login/shell.tsx,
+    src/app/login/art.tsx,
+    src/components/site-header.tsx,
     src/components/reveal-observer.tsx,
     src/components/count-up.tsx,
     src/components/status-chip.tsx,
@@ -61,6 +65,7 @@ rules for `body`, selection and the focus ring.
 | `globals.css`     | imports, `@theme` tokens, base layer                     |
 | `ui.css`          | page shell, type scale, `.ui-card`, `.ui-item`, nav, stats |
 | `ui-controls.css` | buttons, fields, checks, disclosure, statuses, notices   |
+| `ui-login.css`    | the sign-in screen: split frame, artwork paints, pill CTA |
 | `animations.css`  | both `@keyframes`, `.reveal`, the reduced-motion switch  |
 
 The `ui.css` / `ui-controls.css` split is **not** conceptual — the two are one
@@ -73,6 +78,36 @@ bans inline styles. Tailwind utilities still carry layout (flex, grid, gap).
 Text has exactly three weights — `--color-ui-ink`, `--color-ui-dim`,
 `--color-ui-faint` — and all three clear 4.5:1 on the background. A fourth, fainter
 grey is how the HUD theme's contrast problem started.
+
+## The sign-in screen — the one exception to the shell
+
+`/login` ([[app-authentication]]) is the only page that does **not** use `.ui-shell`.
+It is a full-viewport split frame: artwork half on the left (brand mark, "Nice to see
+you again", WELCOME BACK, accent rule, the owner-only blurb), gate half on the right
+(heading, lede, one wide pill CTA, fine print). Redesigned on 2026-08-14 from a stock
+blue login mockup the owner supplied — **the composition was borrowed, none of the
+colour was**.
+
+- `login/shell.tsx` is the frame, and *every* branch renders through it: Google
+  button, Hevy-key form, and the "not configured" dead end. A misconfigured server
+  still looks like the product rather than a bare error card.
+- `login/art.tsx` is the illustration — a portrait viewBox sliced to the panel, so it
+  survives going from a tall column to a short band above the form.
+- `SiteHeader` returns `null` on `/login`: the split wants the whole viewport, and
+  every link in that nav points somewhere a logged-out visitor cannot go.
+
+Two rules came out of it.
+
+**SVG paint is CSS, not attributes.** Every fill, stroke, opacity and gradient stop in
+the artwork is a class in `ui-login.css`. The no-inline-CSS rule has no SVG exemption,
+and the payoff is that the whole illustration re-tints with `--color-ui-accent`
+instead of pinning a hex the palette will drift away from.
+
+**At this palette, a wave is a line, not a fill.** The first pass tinted the canvas
+with the accent and stacked wave fills up to 0.85 opacity; it rendered as an olive
+block — exactly the failure the Graphite palette was chosen against. The fix was
+dropping the fills to near-invisible (0.14 → 0.02 gradient stops) and stroking a crest
+line along each curve. Only a screenshot of the running app showed it.
 
 ## One shell width
 
@@ -126,6 +161,11 @@ animation and transition, so no new animation has to remember to opt out.
   is correct and the fix is disabling the extension on the dev origin.
   `suppressHydrationWarning` is the wrong tool — it covers a single element rather
   than the nested divs, and it would mask real mismatches later.
+- **Headless Chrome on Windows will not render a viewport narrower than ~500px.**
+  `--window-size=414,896` lays the page out at 500 and then CROPS the image to 414,
+  which looks exactly like a responsive layout overflowing horizontally — the frame
+  runs off the right edge and text is cut mid-word. `--headless=old` behaves the same.
+  Re-shoot at 500 before believing it: even margins there mean the layout is fine.
 - **Screenshots catch the reveal animation mid-flight.** Headless Chrome with
   `--virtual-time-budget` froze the page at opacity ~0 with the stat counters still
   at 0. `--force-prefers-reduced-motion` is the fix, and it is also the honest static

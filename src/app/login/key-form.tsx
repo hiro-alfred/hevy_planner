@@ -22,26 +22,30 @@ export function HevyKeyLoginForm({ next }: { next: string }) {
   const [state, formAction, isPending] = useActionState(hevyKeyLoginAction, IDLE);
 
   return (
-    <form action={formAction} className="flex flex-col gap-3">
+    <form action={formAction} className="flex flex-col gap-4">
       <input type="hidden" name="next" value={next} />
-      <label htmlFor="apiKey" className="ui-label">
-        Hevy API key
-      </label>
-      <input
-        id="apiKey"
-        name="apiKey"
-        type="password"
-        autoComplete="current-password"
-        spellCheck={false}
-        required
-        placeholder="Paste your Hevy Pro developer key"
-        className="ui-field ui-mono"
-      />
-      <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={isPending} className={buttonClasses("primary")}>
-          {isPending ? "Checking…" : "Sign in"}
-        </button>
+      <div className="flex flex-col gap-2">
+        <label htmlFor="apiKey" className="ui-label">
+          Hevy API key
+        </label>
+        <input
+          id="apiKey"
+          name="apiKey"
+          type="password"
+          autoComplete="current-password"
+          spellCheck={false}
+          required
+          placeholder="Paste your Hevy Pro developer key"
+          className="ui-field ui-mono ui-login__input"
+        />
       </div>
+      <button
+        type="submit"
+        disabled={isPending}
+        className={`${buttonClasses("primary")} ui-login__cta`}
+      >
+        {isPending ? "Checking…" : "Sign in"}
+      </button>
       <ActionMessage state={isPending ? IDLE : state} />
     </form>
   );

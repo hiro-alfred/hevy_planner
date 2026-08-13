@@ -4,7 +4,7 @@ aliases: [authentication, auth, login, the gate]
 tags: [security, auth, design, nextjs]
 type: design
 created: 2026-08-13
-updated: 2026-08-13
+updated: 2026-08-14
 sources:
   - src/proxy.ts
   - src/lib/auth/config.ts
@@ -126,6 +126,12 @@ dedicated `AUTH_SESSION_SECRET` that is never `SETTINGS_ENCRYPTION_KEY`.
   the whole gate verifiable end to end against a local stand-in.
 - **Apple: not started.** Needs a paid Apple Developer account; awaiting the
   owner's confirmation.
+
+Whichever mode serves, the page itself is the split sign-in screen described in
+[[ui-design-system]] — the only page in the app with no `.ui-shell` and no top nav.
+Its logic is unchanged by that redesign: redirect-if-signed-in, `force-dynamic`, the
+fixed error-code map (callback failures arrive as a code, never as free text from the
+URL), and an authorize link built on the server so it works with no client JS.
 
 > [!note] Consider not running this at all
 > Cloudflare Access or Tailscale gives the same protection with zero app code —

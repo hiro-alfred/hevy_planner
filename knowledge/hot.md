@@ -4,7 +4,7 @@ aliases: [hot, working memory, where we left off]
 tags: [meta, session]
 type: meta
 created: 2026-08-08
-updated: 2026-08-13
+updated: 2026-08-14
 sources: []
 ---
 
@@ -16,92 +16,71 @@ latest state. History belongs in [[log]] — this page holds only the CURRENT st
 Keep the four sections below; they are the template.
 
 ## Active task
-Nothing in flight, but ONE THING IS UNCONFIRMED — see Next steps 1.
+Nothing in flight. The last round was **cosmetic only**: the login page was
+redesigned as a **split sign-in screen** and the rebuilt image was deployed to
+:3000. Everything about the gate itself is exactly as the previous round left it.
 
-The last round **closed the app behind a login and deployed it**
-([[app-authentication]]). Before it, anyone who could reach the port had full
-control of a Hevy Pro key and could create routines [[hevy-api]] has no endpoint
-to delete. **:3000 now serves the gated image**, with **Google** configured and
-selected (`AUTH_PROVIDER=google`) and the owner's address as the only allowlist
-entry.
+The owner supplied a stock blue "WELCOME BACK" login mockup and asked for that
+composition in the app's own colours. Layout borrowed, palette not — the
+reference's blue wave/grid/dot artwork is redrawn as **lime line art at very low
+opacity** over near-black, so the accent still marks only the primary action
+([[ui-design-system]]).
 
-What shipped: **Google OIDC** (authorization code + PKCE, `id_token` verified
-RS256 against Google's JWKS, `email_verified` required) checked against an email
-allowlist, plus the **Hevy API key as a fallback gate**. Zero new dependencies.
-A GATE ONLY — no `users` table, no migration `0003`.
+What changed: new `src/app/ui-login.css`, `src/app/login/shell.tsx` (the frame
+EVERY branch renders through, including the "not configured" dead end) and
+`src/app/login/art.tsx` (the SVG plus a drawn Google "G"). `key-form.tsx` got a
+pill submit and an accent bar down the field. **`SiteHeader` now returns `null`
+on `/login`** — the one change outside the login page, because the split wants
+the full viewport and every link in that nav pointed somewhere a logged-out
+visitor cannot go. **`page.tsx` logic is untouched**: redirect-if-signed-in,
+`force-dynamic`, the fixed error-code map, the server-built authorize link.
 
-**The owner has since asked for real multi-user accounts with OPEN SIGNUP.**
-That reverses the single-user premise in [[product-architecture]] and is NOT
-built; scope and traps are in [[app-authentication]]'s warning callout.
-Sequencing agreed: finish proving Google first, design tenancy separately.
+Three things from this round worth carrying forward:
 
-Five things from that round are worth carrying forward:
+- **SVG paint is CSS here, not presentation attributes.** Every fill, stroke,
+  opacity and gradient stop is a class in `ui-login.css`. The no-inline-CSS rule
+  has no SVG exemption, and it means the artwork re-tints with
+  `--color-ui-accent` rather than pinning a hex the palette will drift from.
+- **At this palette a wave is a LINE, not a fill.** The first pass tinted the
+  canvas with the accent and stacked wave fills to 0.85 — it rendered as an olive
+  block, the exact failure Graphite was chosen against. Fills went to near
+  invisible and each curve gained a stroked crest. Only a screenshot showed it.
+- **Headless Chrome on Windows will not render a viewport under ~500px.**
+  `--window-size=414,896` lays out at 500 and CROPS to 414, which looks exactly
+  like a broken responsive layout overflowing sideways. `--headless=old` does it
+  too. Re-shoot at 500 before believing it.
 
-- **Next 16 renamed `middleware.ts` → `proxy.ts`** and defaults it to the Node
-  runtime, which is the only reason it can open the AES-GCM session cookie.
-- **The proxy is not a gate for mutations.** Actions dispatch by an id in a
-  header, not by path, and Next's own docs warn a matcher change silently drops
-  Server Function coverage. All 16 server actions call `requireIdentity()` as
-  their FIRST statement — before any try/catch, because `redirect()` throws.
-- **`secret-box.encryptSecret` returns PLAINTEXT when unkeyed.** Right for a
-  settings column mid-migration, fatal for a session token. Key-required
-  `seal`/`open` primitives were split out, with their own `AUTH_SESSION_SECRET`.
-- **Hevy has no OAuth** — re-confirmed against `docs/hevy-openapi.json`: 14 paths,
-  no token endpoint, no `securitySchemes`, `api-key` header on all 22
-  authenticated operations. The key gate is a shared-secret password gate and is
-  labelled as one in the README and on the login page.
-- **`request.nextUrl` is NOT the same in a proxy and a route handler.** In a
-  route handler it is built from the server's BIND address; in the proxy it
-  follows `Host`. That shipped a broken login (`http://0.0.0.0:3000/`) and is
-  invisible on a loopback bind. Build redirects RELATIVE.
-
-Earlier rounds, unchanged: [[suggested-loads]], the routine browser and
-`/routines/[routineId]`, [[exercise-records]], [[workout-history]],
-[[progressive-overload]], the day-aware swap picker ([[exercise-alternatives]]),
-[[plan-editing]], the Graphite theme.
+Earlier rounds, unchanged: the gate itself ([[app-authentication]]),
+[[suggested-loads]], the routine browser and `/routines/[routineId]`,
+[[exercise-records]], [[workout-history]], [[progressive-overload]], the
+day-aware swap picker ([[exercise-alternatives]]), [[plan-editing]], the Graphite
+theme.
 
 ## State reached
-- **Auth is built, run, AND DEPLOYED.** `docker compose up -d --build` was run;
-  **:3000 now serves the gated image** against the owner's real database.
-  Google is configured in `.env` (client id, secret, `AUTH_ORIGIN`,
-  `AUTH_ALLOWED_EMAILS` — the owner's address only) with
-  `AUTH_PROVIDER=google`.
-- **Verified against the live stack on :3000**: `GET /` and `GET /settings` →
-  **307** to `/login?next=…`; `GET /login` → 200; a server-action `POST` →
-  **401**; `/api/auth/start` → 307 to
-  `accounts.google.com/o/oauth2/v2/auth` with `response_type=code`,
-  `scope=openid email`, `code_challenge_method=S256`, `prompt=select_account`,
-  `redirect_uri=http://localhost:3000/api/auth/callback/google`, and
-  state/nonce/challenge each 43 chars; handshake cookie
-  `Path=/; Max-Age=600; Secure; HttpOnly; SameSite=lax`.
-- **A real bug was found and fixed by the owner actually logging in**: the first
-  successful Google sign-in redirected the browser to `http://0.0.0.0:3000/`
-  (ERR_ADDRESS_INVALID). `request.nextUrl` in a ROUTE HANDLER is based on the
-  **bind address**, not the `Host` header, and the Dockerfile binds
-  `HOSTNAME=0.0.0.0`; in the PROXY the same expression follows `Host`, which is
-  why only the OAuth legs broke. Invisible on any loopback bind — the
-  pre-deploy run used `127.0.0.1`. Both legs now emit a RELATIVE `Location`.
-  See the trap callout in [[app-authentication]].
-- Earlier, pre-deploy verification against a throwaway DB and a stand-in Hevy
-  (**the real Hevy account was never touched**) also showed: a foreign action id
-  aimed at public `/login` does not execute; a non-allowlisted identity is
-  refused with one generic message, reason logged server-side only.
-- **366 vitest tests** (up from 278), lint, `tsc`, `next build` and the wiki
-  tests all green.
-- Public paths are exactly `/login`, `/api/auth/callback/google`,
-  `/api/auth/start`. No blanket `/api` matcher exclusion, on purpose.
-- `docker-compose.yml` now requires `AUTH_SESSION_SECRET` via `:?`, so
-  `compose up` fails loudly rather than starting an unprotected container.
-- Migrations `0001` and `0002` applied to the **real** database on this deploy;
-  the boot log was clean.
+- **Redeployed.** `docker compose up -d --build` rebuilt the image and recreated
+  the app container against the real database. `GET /login` → **200** serving the
+  new screen, `GET /` → **307** to `/login?next=…`, boot log clean (no migration
+  error this time).
+- **Screenshotted**, since green checks prove nothing about a look: Google mode
+  and Hevy-key mode (with an error notice) at 1440, stacked at 500, and the live
+  :3000 page after the deploy.
+- `tsc`, lint, `next build`, **366 vitest tests** and 14 wiki tests all green.
+  No test covers the login page's markup — there are no component tests in this
+  repo, so the screenshots are the only evidence for the redesign.
+- Everything the previous round proved about the gate still holds and was not
+  re-verified end to end here: Google OIDC (PKCE, RS256 against Google's JWKS,
+  `email_verified` required) against an email allowlist, the Hevy key fallback,
+  16 server actions calling `requireIdentity()` first, public paths exactly
+  `/login`, `/api/auth/callback/google`, `/api/auth/start`.
 - Still nothing has met a **real Hevy account** — the write path and the workout
   endpoints remain spec-shaped only.
 
 ## Open questions / dissents
-- **UNCONFIRMED: whether the owner's sign-in now completes.** The redirect fix is
-  deployed and the failure they hit is gone, but nobody has reported a
-  successful round trip since. That is the ONE thing to check first next
-  session — everything else about Google is now proven live.
+- **STILL UNCONFIRMED: whether the owner's Google sign-in completes.** The
+  `0.0.0.0` redirect bug is fixed and deployed, but no successful round trip has
+  been reported — and this round only changed how the page LOOKS, so it is still
+  the first thing to check. Use `localhost`, not a LAN IP (see the `Secure`
+  cookie note below).
 - **`Secure` cookies mean `localhost` only, for now.** Sessions carry `Secure`
   under `NODE_ENV=production`; browsers accept that over `http://localhost` but
   DROP it over `http://192.168.x.x`, where a login would succeed and then
@@ -109,24 +88,19 @@ Earlier rounds, unchanged: [[suggested-loads]], the routine browser and
   `allowedDevOrigins: ["192.168.0.*"]`, so LAN access is a real use here and
   currently needs HTTPS (reverse proxy with a cert, or Tailscale).
 - **The image build depends on `fonts.googleapis.com`** (`next/font/google` in
-  `layout.tsx`). It failed once on a cold BuildKit and passed on retry. Not an
-  auth issue; the permanent fix is `next/font/local`.
-- **`SETTINGS_ENCRYPTION_KEY` now reads as 44 chars** (consistent with a valid
-  32-byte key) where a scratch server had earlier rejected it as "got 45", and
-  the container boots clean. Appears resolved; never investigated further,
-  because reading `.env` is forbidden.
-- **The boot-migration retry does NOT survive a cold start — now PROVEN, and it
-  is not an auth bug.** When Docker Desktop launched this session, both
-  containers came up together under `restart: unless-stopped`; the app raced the
-  database, `runMigrations()` died with `ECONNREFUSED 172.18.0.3:3306` inside the
-  instrumentation hook, and :3000 served **500 on every request** until the app
-  container was restarted by hand. The compose `depends_on: service_healthy`
-  only covers the FIRST `compose up`, not a daemon restart. The retry in
-  `src/lib/db/migrate.ts` needs to actually cover connection refusal, or the
-  hook needs to not be fatal — otherwise a host reboot leaves the app dead.
+  `layout.tsx`). It failed once on a cold BuildKit and passed on retry — it built
+  fine this round. The permanent fix is `next/font/local`.
+- **The boot-migration retry does NOT survive a cold start** (proven 2026-08-13,
+  not an auth bug). When Docker Desktop launches, both containers come up
+  together under `restart: unless-stopped`, the app races the database,
+  `runMigrations()` dies with `ECONNREFUSED` inside the instrumentation hook, and
+  :3000 serves **500 on every request** until the app container is restarted by
+  hand. `depends_on: service_healthy` only covers the first `compose up`. The
+  retry in `src/lib/db/migrate.ts` needs to cover connection refusal, or the hook
+  must not be fatal — otherwise a host reboot leaves the app dead.
 - **BLOCKER, unchanged since 2026-08-08: `.env` `DATABASE_URL` does not work.**
   `npm run dev` dies with `Access denied for user 'hevy'@'localhost'`. Only the
-  owner can fix that password.
+  owner can fix that password. LOCAL-DEV only — the container path works.
 - **Unproven: the live Hevy write path**, still irreversible. First real sync
   must be a 2-day plan.
 - **Unproven: LLM generation.** Still no `LLM_API_KEY`.
@@ -134,7 +108,7 @@ Earlier rounds, unchanged: [[suggested-loads]], the routine browser and
 - **Unproven: `GET /v1/routines/{routineId}`, `/v1/routine_folders`** and every
   workout-endpoint response shape — spec-shaped only.
 - **`data/` still holds the pre-migration SQLite file with the Hevy key likely in
-  PLAINTEXT.** Gitignored, not deleted. Flagged eight times now.
+  PLAINTEXT.** Gitignored, not deleted. Flagged nine times now.
 - Hosting undecided (netcup leaning); no backup story — losing `sync_links` is
   the expensive failure, because re-sync would create DUPLICATE Hevy routines.
 - `.claude/worktrees/e2e-build` is fully merged and redundant.
@@ -142,13 +116,11 @@ Earlier rounds, unchanged: [[suggested-loads]], the routine browser and
 ## Local dev setup (this machine)
 MariaDB 12.3.2 native via winget as a Windows service; the `mariadb` CLI is not
 on PATH (`C:\Program Files\MariaDB 12.3\bin\`), and Docker's CLI needs
-`$env:ProgramFiles\Docker\Docker\resources\bin` prepended. **Docker Desktop was
-not running at session start** — launch `"$env:ProgramFiles\Docker\Docker\Docker
-Desktop.exe"` and wait for `docker info` to succeed. Tests:
+`$env:ProgramFiles\Docker\Docker\resources\bin` prepended. Tests:
 `npm run test:db:up` then `npm test` (throwaway MariaDB on 3307).
 
-**Running a gated instance without touching `.env`** (new, and the only way that
-works — Next's env loading overrides shell exports, and `.env` here has a
+**Running a gated instance without touching `.env`** (the only way that works —
+Next's env loading overrides shell exports, and `.env` here has a
 `SETTINGS_ENCRYPTION_KEY` that fails to decode):
 
 ```
@@ -157,18 +129,21 @@ cp -r .next/standalone/. <scratch>/ ; cp -r .next/static <scratch>/.next/static
 cp -r drizzle <scratch>/drizzle                 # standalone omits migrations
 rm <scratch>/.env                               # standalone COPIES .env; drop it
 cd <scratch> && DATABASE_URL=… AUTH_SESSION_SECRET=… \
-  AUTH_ALLOWED_HEVY_USER_IDS=… HEVY_API_BASE_URL=http://127.0.0.1:4010 \
+  AUTH_PROVIDER=google GOOGLE_CLIENT_ID=… GOOGLE_CLIENT_SECRET=… \
   NODE_ENV=production PORT=3005 node server.js
 ```
 
-A stand-in Hevy serving `/v1/user/info` makes the key gate fully drivable with no
-real key. Kill stale servers by port (`Get-NetTCPConnection -LocalPort 3005`) —
-two servers bound to 3005 on different interfaces once, and both wrote to the
-same log, which read exactly like a config bug that was not there.
+Dummy Google credentials are enough to render and screenshot the login page —
+nothing is exchanged until the button is clicked. A throwaway database in the
+test MariaDB (`CREATE DATABASE login_preview` on 3307) satisfies the boot
+migration. Re-staging over a RUNNING standalone server fails with `cannot
+overwrite directory … mysql2-…`; stop the server first, or stage to a new port
+directory. Kill by port: `Get-NetTCPConnection -LocalPort 3005`.
 
 Chrome is `C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`; add
-`--force-prefers-reduced-motion` or the capture freezes mid-reveal. Screenshot
-paths must be **Windows** paths. `CDP_SETTLE_MS` overrides the 4 s settle; a
+`--force-prefers-reduced-motion` or the capture freezes mid-reveal, and never
+trust a capture narrower than 500px (see the crop trap above). Screenshot paths
+must be **Windows** paths. `CDP_SETTLE_MS` overrides the 4 s settle; a
 server-action click needs 6–8 s. Clicks match visible-text PREFIX, first match.
 
 > [!warning] `.env` must never be read (CLAUDE.md)
@@ -176,24 +151,21 @@ server-action click needs 6–8 s. Clicks match visible-text PREFIX, first match
 > cannot already exist in it.
 
 ## Next steps
-1. **Confirm the owner can sign in with Google end to end.** Google is
-   configured and deployed on :3000, and the `0.0.0.0` redirect that broke the
-   first attempt is fixed — but a clean round trip has not been reported.
-   Use `localhost`, not a LAN IP (see the `Secure` cookie note above). If it
-   fails, `docker logs hevy_planner-app-1` names the reason.
-2. **THEN: multi-user with OPEN SIGNUP is the agreed direction** — every
-   visitor with a Google account gets their own plans, history and Hevy key.
-   NOT built; see the warning callout in [[app-authentication]] for the
-   measured scope and the four traps. **Until it lands, `AUTH_ALLOWED_EMAILS`
-   must contain the owner's address ONLY** — a second address today is a second
-   person with full control of the owner's Hevy key, not a second account.
+1. **Confirm the owner can sign in with Google end to end** on :3000 — still the
+   one unproven thing about the gate, and now also the way to see the new login
+   screen in a real browser. If it fails, `docker logs hevy_planner-app-1` names
+   the reason.
+2. **THEN: multi-user with OPEN SIGNUP is the agreed direction** — every visitor
+   with a Google account gets their own plans, history and Hevy key. NOT built;
+   see the warning callout in [[app-authentication]] for the measured scope
+   (~49 query sites, 9 raw-SQL fragments) and the four traps. **Until it lands,
+   `AUTH_ALLOWED_EMAILS` must contain the owner's address ONLY** — a second
+   address today is a second person with full control of the owner's Hevy key.
    Open signup also needs the consent screen Published (Testing caps at 100
    manually-added test users) and raises an abuse question nobody has answered:
    plan generation spends the OWNER's `LLM_API_KEY`.
 3. **Owner fixes `DATABASE_URL` in `.env`** so `npm run dev` boots against the
-   real database. NOTE this is now only a LOCAL-DEV blocker: the container path
-   works, and migrations `0001`/`0002` have already applied to the real database
-   through it.
+   real database.
 4. **Sync workout history against the real Hevy account** from `/records` —
    read-only, safe, and the first real exercise of the workout endpoints.
 5. **Sync one 2-day plan to Hevy.** First write to the live account; irreversible.

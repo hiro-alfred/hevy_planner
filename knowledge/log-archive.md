@@ -4,7 +4,7 @@ aliases: [log archive]
 tags: [meta, journal]
 type: meta
 created: 2026-08-08
-updated: 2026-08-13
+updated: 2026-08-14
 sources: []
 ---
 
@@ -240,3 +240,38 @@ Oldest at the top; keep original entry lines verbatim.
   success, so `SHOW TABLES` is the evidence it ran, and the retry path in
   `src/lib/db/migrate.ts` is still unfired because `depends_on` never lets the
   app meet a database that is not already up.
+
+- 2026-08-08 — **Revamped the UI into a neon-HUD theme** ([[ui-design-system]]):
+  new CSS layer plus six motion components, every page restyled, dark-only by
+  decision rather than by omission. Green checks proved nothing about the look —
+  lint, types, 90 tests and the build all passed while a hover-sweep highlight
+  sat permanently visible on every button and one button stretched full-width.
+  Both were found only by screenshotting the running app, which is now the
+  standard for UI work. Two infrastructure findings worth keeping. (1) Turbopack
+  caches a FAILED `@import` resolution: creating `globals.css` before the
+  `hud.css` it imports left `Can't resolve './hud.css'` surviving a dev-server
+  restart while `next build` succeeded from the same source — clearing `.next`
+  is the fix, and it is the rare case that needs it. (2) A latent `.env`
+  breakage surfaced: a fresh boot dies with `Access denied for user 'hevy'`,
+  though the database and credentials are fine. Next reloads `.env` without
+  re-running `instrumentation.ts`, so the old long-lived server kept a working
+  connection while the file drifted — an app that "still works" is not evidence
+  its config is valid. Recorded as the blocker in [[hot]].
+- 2026-08-08 — **Added the optional trainee profile** ([[trainee-profile]]) and
+  **the LLM path finally ran for real**. A Fable subagent designed the field
+  set; its sharpest move was reading the existing system prompt ("Leave
+  weightKg null — you do not know the trainee's current loads") and choosing
+  the fields that delete that sentence, rather than the body metrics that were
+  asked for. It rejected **height** on the grounds that nothing in the pipeline
+  or in coaching practice consumes it; the owner accepted. Verified on real
+  generations, not unit tests: an injury produced zero overhead pressing across
+  21 exercises, anchors produced populated weights where their absence produced
+  nulls, and a target weight produced a "Cut" plan without the number ever
+  reaching the model. The bug of the session was invisible to every check —
+  `min={1} step={2.5}` on a number input makes 120 a `stepMismatch`, and a form
+  that fails constraint validation **does not submit and displays nothing**;
+  lint, types, 103 tests and the build were all green over a form that could
+  not be submitted. Also measured what the design had only guessed: generation
+  takes 1–3.5 minutes, not 30–60 seconds, which promotes the unbuilt
+  `streamObject` handler from nicety to the worst moment in the product.
+  Separately designed and recorded, unbuilt: [[exercise-alternatives]].
