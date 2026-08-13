@@ -82,6 +82,15 @@ Earlier rounds, unchanged: [[suggested-loads]], the routine browser and
   hook rejected it with "got 45" when a scratch server loaded that file). Noticed
   incidentally and NOT investigated — reading `.env` is forbidden. If the live
   container ever restarts it may fail on this. Owner's to check.
+- **The boot-migration retry does NOT survive a cold start — now PROVEN, and it
+  is not an auth bug.** When Docker Desktop launched this session, both
+  containers came up together under `restart: unless-stopped`; the app raced the
+  database, `runMigrations()` died with `ECONNREFUSED 172.18.0.3:3306` inside the
+  instrumentation hook, and :3000 served **500 on every request** until the app
+  container was restarted by hand. The compose `depends_on: service_healthy`
+  only covers the FIRST `compose up`, not a daemon restart. The retry in
+  `src/lib/db/migrate.ts` needs to actually cover connection refusal, or the
+  hook needs to not be fatal — otherwise a host reboot leaves the app dead.
 - **BLOCKER, unchanged since 2026-08-08: `.env` `DATABASE_URL` does not work.**
   `npm run dev` dies with `Access denied for user 'hevy'@'localhost'`. Only the
   owner can fix that password.
