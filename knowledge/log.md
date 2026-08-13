@@ -250,3 +250,31 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   subscription**, since the pinned spec states the API is Pro-only.
   Sequencing agreed with the owner: prove the Google login end to end FIRST,
   design tenancy separately after. Nothing towards tenancy has been written.
+- 2026-08-13 — **Google configured, stack rebuilt, and the login shipped BROKEN
+  until the owner actually tried it.** The owner created an OAuth client and
+  filled `.env`; `docker compose up -d --build` put the gated image on :3000
+  against the real database (migrations `0001`/`0002` applied, boot log clean).
+  Verified live: `GET /` and `/settings` → 307 to `/login?next=…`, `/login` →
+  200, a server-action POST → 401, and `/api/auth/start` → 307 to Google with
+  `response_type=code`, `scope=openid email`, S256, `prompt=select_account` and
+  the right `redirect_uri`.
+  Then the first real sign-in authenticated and dumped the browser on
+  `http://0.0.0.0:3000/` (ERR_ADDRESS_INVALID). **`request.nextUrl` in a ROUTE
+  HANDLER is based on the server's BIND address, not the `Host` header**, and
+  the Dockerfile binds `HOSTNAME=0.0.0.0`; in the PROXY the same expression
+  follows `Host`, which is why the logged-out redirect had been correct all
+  along and only the two OAuth legs broke. It survived every pre-deploy check
+  because that run bound `127.0.0.1` — a routable address — so a bind-host bug
+  is INVISIBLE on loopback. Both legs now emit a relative `Location`;
+  `AUTH_ORIGIN` was deliberately not used as a base, since it is the registered
+  redirect URI and would break the moment the app is reached by another name.
+  Regression test asserts the property, not the old string. 366 tests.
+  Two operational facts recorded in [[app-authentication]]: `Secure` session
+  cookies are accepted over `http://localhost` but DROPPED over a LAN IP, so
+  LAN access needs HTTPS; and the image build depends on `fonts.googleapis.com`
+  via `next/font/google`, which failed once on a cold BuildKit and passed on
+  retry. Neither is caused by auth.
+  Lesson worth keeping: the gate was proven with curl, unit tests and a headless
+  browser, and still shipped a bug that only a human clicking Sign in could find
+  — because the pre-deploy environment differed from the deployed one in exactly
+  one variable nobody thought to vary.

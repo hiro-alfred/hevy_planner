@@ -149,6 +149,45 @@ Against a real server (standalone build, throwaway MariaDB, a stand-in Hevy at
 - non-allowlisted key (valid, different account) → refused with one generic
   message; the specific reason (`not-allowlisted`) went to the server log only.
 
-361 vitest tests pass, up from 278. Public paths are exactly `/login`,
+366 vitest tests pass, up from 278. Public paths are exactly `/login`,
 `/api/auth/callback/google`, `/api/auth/start` — there is deliberately **no**
 blanket `/api` exclusion in the matcher, which is the usual way this leaks.
+
+## The trap that shipped anyway
+
+> [!warning] `request.nextUrl` means different things in a proxy and a route handler
+> The first real Google login authenticated correctly and then sent the browser
+> to `http://0.0.0.0:3000/`, dying with ERR_ADDRESS_INVALID.
+>
+> Both OAuth legs built their redirect as `new URL(path, request.nextUrl)`. In
+> a **route handler** that base comes from the server's **BIND address**, not
+> the `Host` header — and the Dockerfile binds `HOSTNAME=0.0.0.0`. In the
+> **proxy** the same expression *does* follow `Host`, which is why the
+> logged-out redirect was correct all along and only the OAuth legs broke.
+>
+> It survived verification because the pre-deploy run bound `127.0.0.1`, a
+> routable address, so the redirect looked right. **A bind-host bug is
+> invisible on any loopback bind** — it only appears in the container.
+>
+> Fix: both legs emit a **relative** `Location` (`relativeRedirect` in
+> `lib/auth/paths.ts`), which the browser resolves against its own request and
+> is therefore correct under any bind host, behind a reverse proxy, and on a
+> LAN address. `AUTH_ORIGIN` was deliberately NOT used as the base — it is the
+> registered OAuth redirect URI, and forcing every redirect through it breaks
+> as soon as the app is reached by another name. `NextResponse.redirect()` is
+> unusable here because it demands an absolute URL, so the helper constructs
+> `NextResponse` directly; the legs still set and clear cookies on the redirect.
+
+## Two operational facts
+
+- **`Secure` cookies and the LAN.** Sessions are `Secure` under
+  `NODE_ENV=production`, and browsers accept those over `http://localhost`
+  (a trustworthy origin) but **drop them over `http://192.168.x.x`** — a login
+  there succeeds and then silently bounces back to `/login`. `next.config.ts`
+  has `allowedDevOrigins: ["192.168.0.*"]`, so LAN access is a real use here;
+  making it work needs HTTPS (reverse proxy with a cert, or Tailscale).
+- **The image build depends on Google Fonts.** `layout.tsx` pulls Geist via
+  `next/font/google`, so `npm run build` inside Docker needs
+  `fonts.googleapis.com`. It failed once on a cold BuildKit (DNS not warm) and
+  succeeded on retry. Pre-existing, not caused by auth; the permanent fix is
+  `next/font/local` with self-hosted files ([[ui-design-system]]).
