@@ -27,27 +27,77 @@ const TAG_BYTES = 16;
 export class SecretBoxError extends Error {}
 
 /**
- * Parses the configured key, or returns null when none is set.
+ * Decodes a 32-byte key from an env var's raw value.
  *
  * Accepts base64 or hex so operators can paste whatever their tooling emits;
  * both must decode to exactly 32 bytes. A short key is rejected rather than
  * padded — silently stretching a weak key would be the worst of both worlds.
+ * `varName` is only ever used to write the error message.
  */
-function loadKey(): Buffer | null {
-  const raw = process.env[ENV_VAR]?.trim();
-  if (!raw) return null;
-
+export function parseKeyMaterial(raw: string, varName: string): Buffer {
   const decoded = /^[0-9a-fA-F]{64}$/.test(raw)
     ? Buffer.from(raw, "hex")
     : Buffer.from(raw, "base64");
 
   if (decoded.length !== KEY_BYTES) {
     throw new SecretBoxError(
-      `${ENV_VAR} must decode to ${KEY_BYTES} bytes (got ${decoded.length}). ` +
+      `${varName} must decode to ${KEY_BYTES} bytes (got ${decoded.length}). ` +
         `Generate one with: node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`,
     );
   }
   return decoded;
+}
+
+/** Parses the configured settings key, or returns null when none is set. */
+function loadKey(): Buffer | null {
+  const raw = process.env[ENV_VAR]?.trim();
+  if (!raw) return null;
+  return parseKeyMaterial(raw, ENV_VAR);
+}
+
+/**
+ * AES-256-GCM with an EXPLICIT key. The primitive behind encryptSecret, split
+ * out so other subsystems can hold their own key rather than sharing the
+ * settings one (auth sessions do — see lib/auth/session.ts).
+ *
+ * The difference that matters: this pair has no "no key configured" fallback.
+ * encryptSecret below deliberately passes plaintext through when the settings
+ * key is absent, which is right for a database column that must stay readable
+ * during a migration, and catastrophically wrong for a session token — an
+ * unkeyed `seal` would mint credentials anyone could forge. Callers that must
+ * fail closed use these two and supply the key themselves.
+ *
+ * `context` is bound as GCM additional authenticated data, so a value sealed
+ * for one purpose cannot be replayed as another.
+ */
+export function seal(plaintext: string, context: string, key: Buffer): string {
+  const iv = randomBytes(IV_BYTES);
+  const cipher = createCipheriv(ALGORITHM, key, iv);
+  cipher.setAAD(Buffer.from(context, "utf8"));
+  const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  return [iv, tag, ciphertext].map((b) => b.toString("base64url")).join(".");
+}
+
+/** Opens a `seal()` value. Throws SecretBoxError on any tampering. */
+export function open(sealed: string, context: string, key: Buffer): string {
+  const parts = sealed.split(".");
+  if (parts.length !== 3) throw new SecretBoxError("Sealed value is malformed.");
+
+  const [iv, tag, ciphertext] = parts.map((p) => Buffer.from(p, "base64url"));
+  if (iv!.length !== IV_BYTES || tag!.length !== TAG_BYTES) {
+    throw new SecretBoxError("Sealed value has a bad nonce or tag length.");
+  }
+
+  try {
+    const decipher = createDecipheriv(ALGORITHM, key, iv!);
+    decipher.setAAD(Buffer.from(context, "utf8"));
+    decipher.setAuthTag(tag!);
+    return Buffer.concat([decipher.update(ciphertext!), decipher.final()]).toString("utf8");
+  } catch {
+    throw new SecretBoxError("Sealed value failed authentication.");
+  }
 }
 
 export function encryptionEnabled(): boolean {

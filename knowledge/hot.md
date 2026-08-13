@@ -4,7 +4,7 @@ aliases: [hot, working memory, where we left off]
 tags: [meta, session]
 type: meta
 created: 2026-08-08
-updated: 2026-08-11
+updated: 2026-08-13
 sources: []
 ---
 
@@ -16,150 +16,141 @@ latest state. History belongs in [[log]] — this page holds only the CURRENT st
 Keep the four sections below; they are the template.
 
 ## Active task
-Nothing in flight. The last round did **next step 5: fed the workout records back
-into plan generation** ([[suggested-loads]]).
+Nothing in flight. The last round **closed the app behind a login** —
+[[app-authentication]], built at the owner's request. Before it, anyone who could
+reach the port had full control of a Hevy Pro key and could create routines
+[[hevy-api]] has no endpoint to delete.
 
-`rules.ts` still emits `weightKg: null`, but the comment justifying it was half
-false — the app has a full lifting history now. The owner was given three options
-and chose **"suggest, don't commit"**:
+What shipped: **Google OIDC** (authorization code + PKCE, `id_token` verified
+RS256 against Google's JWKS, `email_verified` required) checked against an email
+allowlist, plus the **Hevy API key as a fallback gate**. Zero new dependencies.
+A GATE ONLY — the app stays single-user, no `users` table, no migration `0003`.
 
-- The plan page runs [[progressive-overload]]'s engine (the SAME call `/records`
-  makes, asserted by a test) over the plan's exercises and shows the load each
-  one's history implies. It becomes a plan weight only when **Use suggested
-  loads** is pressed, because a plan weight syncs to a routine [[hevy-api]]
-  cannot delete.
-- **Suggestion runs AFTER generation, for BOTH generators.** The rules and LLM
-  paths therefore cannot produce different loads for the same request, and the
-  prompt stays cheap — it is never told about the history.
-- **The rep-band trap** is the part worth remembering: the engine infers a band
-  from the LOG while the plan prescribes one from the REQUEST. 140 kg earned in
-  sets of five is a reckless start for sets of twelve, so mismatched suggestions
-  are shown with the band they came from, dimmed, and excluded from the bulk
-  apply. The per-exercise Edit form takes them one at a time.
-- **N+1 avoided**: `getRecentSessions(ids)` in `last-session.ts` — one `inArray`
-  plus `dense_rank()` inside SQL, capped at `PROGRESSION_WINDOW` imported from
-  `progression.ts` — so a whole 7-day plan costs TWO queries, not fifty-six.
+Four things from that round are worth carrying forward:
 
-Two side effects worth knowing: `weightKg` is now editable per exercise (three
-states — a number, an explicit null, an absent key that changes nothing), and the
-plan page **displays loads at all** for the first time. It never did, even though
-the LLM path could already set one from the stated working weights — an unshown
-weight still synced.
+- **Next 16 renamed `middleware.ts` → `proxy.ts`** and defaults it to the Node
+  runtime, which is the only reason it can open the AES-GCM session cookie.
+- **The proxy is not a gate for mutations.** Actions dispatch by an id in a
+  header, not by path, and Next's own docs warn a matcher change silently drops
+  Server Function coverage. All 16 server actions call `requireIdentity()` as
+  their FIRST statement — before any try/catch, because `redirect()` throws.
+- **`secret-box.encryptSecret` returns PLAINTEXT when unkeyed.** Right for a
+  settings column mid-migration, fatal for a session token. Key-required
+  `seal`/`open` primitives were split out, with their own `AUTH_SESSION_SECRET`.
+- **Hevy has no OAuth** — re-confirmed against `docs/hevy-openapi.json`: 14 paths,
+  no token endpoint, no `securitySchemes`, `api-key` header on all 22
+  authenticated operations. The key gate is a shared-secret password gate and is
+  labelled as one in the README and on the login page.
 
-New modules: `lib/planner/suggested-loads.ts` (pure policy), `lib/planner/plan-loads.ts`
-(the two queries), `app/ui-loads.css`. New script: `scripts/seed-demo-history.mjs`.
-
-Earlier rounds, unchanged: the routine browser and `/routines/[routineId]`;
-[[exercise-records]], [[workout-history]] and [[progressive-overload]]; the
-day-aware swap picker ([[exercise-alternatives]]); [[plan-editing]]; the Graphite
-theme. Both previously carried-over decisions (the [[trainee-profile]] intake
-review and the `classifyGoal` default-text bug) remain CLOSED.
+Earlier rounds, unchanged: [[suggested-loads]], the routine browser and
+`/routines/[routineId]`, [[exercise-records]], [[workout-history]],
+[[progressive-overload]], the day-aware swap picker ([[exercise-alternatives]]),
+[[plan-editing]], the Graphite theme.
 
 ## State reached
-- **Suggested loads are built AND run.** Lint, `tsc`, **278 vitest tests** (up from
-  254), the wiki tests and `next build` all green.
-- **Verified in a real browser against a seeded MariaDB**, not just built: a 4-day
-  upper/lower plan generated from the form with every recommendation branch visible
-  at once (add weight 102.5, add reps 70, layoff deload 40, stall deload 90,
-  baseline 30, the non-transferable strength squat 140, pull-ups with history but
-  no load, and exercises with no history); "Use suggested loads (8)" pressed and the
-  8 confirmed in the stored plan JSON with the squat correctly untouched; the new
-  Edit weight field opened prefilled, typed to 97.5 and cleared back to null.
-- **`scripts/cdp-drive.mjs` gained a `fill:` step.** React controlled inputs ignore
-  a plain `.value` assignment — the native setter plus a bubbled `input` event is
-  what React listens for. Forms behind a disclosure are now drivable, not only
-  buttons.
-- **`scripts/seed-demo-history.mjs` is new**: builds the demo catalog + history in
-  one command, so verification does not start by re-inventing a seed each time. It
-  DELETES the catalog and history first — throwaway databases only.
-- **The database needs migrations `0001` and `0002` on next boot** against the
-  owner's real database. Both are additive.
-- Still nothing has met a **real Hevy account**: `/routines`, the workout
-  endpoints, and the write path are all spec-shaped only.
+- **Auth is built AND run**, not merely compiled. Verified against a real
+  standalone server on 3005 with a throwaway MariaDB and a stand-in Hevy at
+  `HEVY_API_BASE_URL` — **the real Hevy account was never touched**:
+  logged-out action `POST` → **401**, no `Location`; logged-out `GET /settings` →
+  **307** to `/login?next=%2Fsettings`; a foreign action id aimed at public
+  `/login` did **not** execute (scratch `settings` table stayed empty);
+  allowlisted key signed in and landed on the remembered `/settings`; a
+  non-allowlisted key was refused with one generic message, reason logged
+  server-side only; a guarded action ran normally once authenticated.
+- **361 vitest tests** (up from 278), lint, `tsc` and `next build` all green.
+- Public paths are exactly `/login`, `/api/auth/callback/google`,
+  `/api/auth/start`. No blanket `/api` matcher exclusion, on purpose.
+- **`.env` gained the new `AUTH_*` keys** (append-only, names that could not
+  already exist). `AUTH_SESSION_SECRET` is filled in; **every provider field is
+  EMPTY**, so the owner's stack answers 503 until one is chosen. That is the
+  designed failure, not a bug — see Next steps 1.
+- `docker-compose.yml` now requires `AUTH_SESSION_SECRET` via `:?`, so
+  `compose up` fails loudly rather than starting an unprotected container.
+- The **running container on :3000 was NOT rebuilt or restarted** — it is still
+  the pre-auth image.
+- Still nothing has met a **real Hevy account**, and the Google leg has never run
+  against a real OAuth client.
 
 ## Open questions / dissents
-- **BLOCKER: `.env` `DATABASE_URL` does not work.** A fresh `npm run dev` dies with
-  `Access denied for user 'hevy'@'localhost' (using password: YES)`. Unchanged since
-  2026-08-08. Everything screenshotted so far, this round included, ran against a
-  **throwaway** database on 3307. Only the owner can fix the `hevy` password.
-- **A `next dev` server is running on port 3000 and was NOT touched** (verified still
-  serving 200 at wrap-up). Next 16 refuses a second dev server for the same
-  directory, so this round used `next start -p 3005` and stopped it afterwards.
-- **`scripts/seed-demo-history.mjs` was not asked for.** It is committed because
-  every verified round so far has begun by hand-seeding a database and each one
-  re-invented that seed. Delete it if that is unwanted.
-- **Unproven: the rep-band equality rule against real training.** Bands compare by
-  exact equality because both sides come from `BY_GOAL`; a trainee whose plan was
-  hand-edited to a custom range gets no bulk apply at all. Conservative on purpose,
-  but nobody has trained against it.
-- **Unproven: `GET /v1/routines/{routineId}` and `GET /v1/routine_folders`**, and
-  **every workout-endpoint response shape** — all from the pinned spec, which
-  [[hevy-api]] has already caught lying about a field name once.
-- **Unproven: LLM generation.** Still no `LLM_API_KEY` anywhere.
-- **Unproven: the live Hevy write path**, and it is irreversible — no DELETE plus a
-  routine cap. The first real sync must be a 2-day plan.
-- **Unproven: the boot-migration retry** in `src/lib/db/migrate.ts`.
-- **`data/` still holds the pre-migration SQLite file, which likely contains the Hevy
-  key IN PLAINTEXT.** Gitignored, not deleted — the owner's data, their call.
-  Flagged seven times now.
-- Hosting undecided (netcup leaning). No backup story yet; losing `sync_links` is the
-  expensive failure, because re-sync would create DUPLICATE Hevy routines.
-- `.claude/worktrees/e2e-build` is fully merged and redundant; safe to
-  `git worktree remove`.
+- **The owner must pick a provider**, or the app 503s. Nothing can be decided for
+  them: it needs either a Google OAuth client or their real Hevy user id.
+- **Unproven: the Google flow end to end.** Its logic is covered by tests that
+  generate an RSA keypair, publish it as a JWKS and sign their own tokens — good
+  coverage of verification, but NOT proof that a real Google client, consent
+  screen and redirect URI are configured correctly.
+- **`.env`'s `SETTINGS_ENCRYPTION_KEY` does not decode to 32 bytes** (the boot
+  hook rejected it with "got 45" when a scratch server loaded that file). Noticed
+  incidentally and NOT investigated — reading `.env` is forbidden. If the live
+  container ever restarts it may fail on this. Owner's to check.
+- **BLOCKER, unchanged since 2026-08-08: `.env` `DATABASE_URL` does not work.**
+  `npm run dev` dies with `Access denied for user 'hevy'@'localhost'`. Only the
+  owner can fix that password.
+- **Unproven: the live Hevy write path**, still irreversible. First real sync
+  must be a 2-day plan.
+- **Unproven: LLM generation.** Still no `LLM_API_KEY`.
+- **Unproven: the rep-band equality rule** against real training.
+- **Unproven: `GET /v1/routines/{routineId}`, `/v1/routine_folders`** and every
+  workout-endpoint response shape — spec-shaped only.
+- **`data/` still holds the pre-migration SQLite file with the Hevy key likely in
+  PLAINTEXT.** Gitignored, not deleted. Flagged eight times now.
+- Hosting undecided (netcup leaning); no backup story — losing `sync_links` is
+  the expensive failure, because re-sync would create DUPLICATE Hevy routines.
+- `.claude/worktrees/e2e-build` is fully merged and redundant.
 
 ## Local dev setup (this machine)
 MariaDB 12.3.2 native via winget as a Windows service; the `mariadb` CLI is not
-on PATH (`C:\Program Files\MariaDB 12.3\bin\`), and Docker's CLI likewise needs
-`$env:ProgramFiles\Docker\Docker\resources\bin` prepended until a new shell
-picks it up. Tests run against either the native server or the container:
-`npm run test:db:up` then `TEST_DATABASE_URL="mysql://root:root@127.0.0.1:3307"
-npm test`. That throwaway server on 3307 is also the way to run the app against
-disposable data — point `DATABASE_URL` at it and the boot migration builds the
-schema. Because `next dev` refuses to start beside the running one on 3000, use
-`npm run build` then `DATABASE_URL=… npx next start -p 3005`. Elevation: the
-session shell is not admin, but `Start-Process -Verb RunAs` works and prompts UAC.
-Bitdefender's browser extension injects attributes into the DOM — expect hydration
-warnings that are not the app's fault ([[ui-design-system]]).
+on PATH (`C:\Program Files\MariaDB 12.3\bin\`), and Docker's CLI needs
+`$env:ProgramFiles\Docker\Docker\resources\bin` prepended. **Docker Desktop was
+not running at session start** — launch `"$env:ProgramFiles\Docker\Docker\Docker
+Desktop.exe"` and wait for `docker info` to succeed. Tests:
+`npm run test:db:up` then `npm test` (throwaway MariaDB on 3307).
 
-**The full run loop, start to screenshot** (proven twice now):
+**Running a gated instance without touching `.env`** (new, and the only way that
+works — Next's env loading overrides shell exports, and `.env` here has a
+`SETTINGS_ENCRYPTION_KEY` that fails to decode):
 
 ```
-node -e "…create database hevy_loads…"                    # scratch db on 3307
-DATABASE_URL=…/hevy_loads npx next start -p 3005          # boot builds the schema
-SEED_DATABASE_URL=…/hevy_loads node scripts/seed-demo-history.mjs
-chrome --headless=new --remote-debugging-port=9222 --user-data-dir=<scratch> …
-node scripts/cdp-drive.mjs <url> "Edit|fill:#weightKg-0-0=97.5|Save" <out.png> <sel>
+npm run build                                   # emits .next/standalone
+cp -r .next/standalone/. <scratch>/ ; cp -r .next/static <scratch>/.next/static
+cp -r drizzle <scratch>/drizzle                 # standalone omits migrations
+rm <scratch>/.env                               # standalone COPIES .env; drop it
+cd <scratch> && DATABASE_URL=… AUTH_SESSION_SECRET=… \
+  AUTH_ALLOWED_HEVY_USER_IDS=… HEVY_API_BASE_URL=http://127.0.0.1:4010 \
+  NODE_ENV=production PORT=3005 node server.js
 ```
+
+A stand-in Hevy serving `/v1/user/info` makes the key gate fully drivable with no
+real key. Kill stale servers by port (`Get-NetTCPConnection -LocalPort 3005`) —
+two servers bound to 3005 on different interfaces once, and both wrote to the
+same log, which read exactly like a config bug that was not there.
 
 Chrome is `C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`; add
-`--force-prefers-reduced-motion` or the capture freezes mid-reveal with every stat
-counter reading 0. Screenshot paths must be **Windows** paths — a Git-Bash `/c/...`
-path fails with "Access is denied". `CDP_SETTLE_MS` overrides the 4 s settle; a
-server-action click needs 6–8 s or the shot catches a button still reading
-"Building your plan…". Clicks match visible-text PREFIX and hit the FIRST match, so
-targeting the third "Edit" on a page is still not possible.
+`--force-prefers-reduced-motion` or the capture freezes mid-reveal. Screenshot
+paths must be **Windows** paths. `CDP_SETTLE_MS` overrides the 4 s settle; a
+server-action click needs 6–8 s. Clicks match visible-text PREFIX, first match.
 
 > [!warning] `.env` must never be read (CLAUDE.md)
 > Append new keys rather than rewriting the file, and only with names that
 > cannot already exist in it.
 
 ## Next steps
-1. **Owner fixes `DATABASE_URL` in `.env`** so `npm run dev` boots against the real
-   database again. Migrations `0001` and `0002` apply on that boot.
-2. **Sync workout history against the real Hevy account** from `/records` — the first
-   real exercise of the workout endpoints, and the only way to learn whether the spec
-   is telling the truth about them. Read-only, so it is safe to try. It is also what
-   makes [[suggested-loads]] say anything about real training rather than seed data.
-3. **Owner adds `LLM_API_KEY=<deepseek key>` to `.env`**, restart, generate one plan,
-   confirm the preview reports an LLM plan and not a rules fallback.
-4. **Sync one 2-day plan to Hevy.** First write to the live account; irreversible.
-   Now also the first time a suggested LOAD would reach the account — apply the loads
-   before syncing so that path is exercised deliberately rather than by accident.
-5. **Use `scripts/cdp-drive.mjs` on what is still unclicked**: the rejected-exercises
-   Restore/Clear list and the sync buttons. The swap picker, the Edit form and the
-   suggested-loads button are now verified.
-5a. **Open a real routine at `/routines/[id]`** once the key and database work — the
-   only way to learn whether the single-routine and folder endpoints behave as the
-   spec claims.
-6. Decide what to do with the compose stack (`docker compose down [-v]`), pick the
-   VPS, add a `mysqldump` backup cron, and ask about deleting `data/`.
+1. **Owner chooses an identity provider and fills `.env`.** Until then the app
+   answers 503 by design. Google is recommended — the README lists the exact
+   Cloud console steps and the five values needed. The fastest alternative is
+   `AUTH_ALLOWED_HEVY_USER_IDS` from
+   `curl -H "api-key: <key>" https://api.hevyapp.com/v1/user/info`.
+   **Or decide in-app auth is not wanted at all** and put Cloudflare Access or
+   Tailscale in front instead — same protection, zero code to maintain.
+2. **Run the Google leg once for real** and confirm the redirect URI matches.
+   This is the only untested part of the round.
+3. **Owner fixes `DATABASE_URL` in `.env`** so `npm run dev` boots against the
+   real database; migrations `0001` and `0002` apply on that boot. Also check
+   `SETTINGS_ENCRYPTION_KEY` decodes to 32 bytes.
+4. **Rebuild and restart the compose stack** so :3000 actually runs the gated
+   image (`docker compose up -d --build`). It will refuse to start until step 1
+   is done — that is the `:?` guard working.
+5. **Sync workout history against the real Hevy account** from `/records` —
+   read-only, safe, and the first real exercise of the workout endpoints.
+6. **Sync one 2-day plan to Hevy.** First write to the live account; irreversible.
+   Apply the suggested loads first so that path is exercised deliberately.
+7. Decide what to do with `data/`, pick the VPS, add a `mysqldump` backup cron.

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Card } from "@/components/card";
+import { requireIdentity } from "@/lib/auth/guard";
 import { getCatalogStatus } from "@/lib/hevy/catalog";
 import { getHevyKeyStatus } from "@/lib/settings";
 import { PlanForm } from "./plan-form";
@@ -12,6 +13,9 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function NewPlanPage() {
+  // Defence in depth: the proxy already redirects an unauthenticated GET, but
+  // a check here means the gate survives a matcher change.
+  await requireIdentity();
   const [catalog, keyStatus] = await Promise.all([getCatalogStatus(), getHevyKeyStatus()]);
   const canGenerate = catalog.count > 0;
 

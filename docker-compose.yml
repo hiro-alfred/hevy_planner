@@ -42,6 +42,23 @@ services:
       # empty value means plaintext in the database volume and in every dump
       # taken from it, and a shared fallback secret would be worse than none.
       SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY:?set SETTINGS_ENCRYPTION_KEY in .env - see .env.example}
+      # Authentication. Required, and required LOUDLY: `:?` fails `compose up`
+      # with this message rather than starting a container that would answer
+      # every request with a 503 nobody reads. The app refuses to serve without
+      # it because it holds a Hevy key and can write undeletable routines.
+      AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:?set AUTH_SESSION_SECRET in .env - see .env.example}
+      # Google sign-in (recommended). Empty here selects the Hevy-key gate.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      AUTH_ORIGIN: ${AUTH_ORIGIN:-}
+      AUTH_ALLOWED_EMAILS: ${AUTH_ALLOWED_EMAILS:-}
+      # Hevy-key gate (fallback; a shared-secret password gate, not identity).
+      AUTH_ALLOWED_HEVY_USER_IDS: ${AUTH_ALLOWED_HEVY_USER_IDS:-}
+      AUTH_PROVIDER: ${AUTH_PROVIDER:-}
+      AUTH_SESSION_TTL_HOURS: ${AUTH_SESSION_TTL_HOURS:-}
+      # Deliberately NOT passed through: AUTH_DISABLED. A container built from
+      # this file runs with NODE_ENV=production, which refuses it anyway —
+      # forwarding it would only invite someone to try.
       # Optional bootstrap key; the settings page is the normal way to set it.
       HEVY_API_KEY: ${HEVY_API_KEY:-}
       # Plan generation. All optional — with no LLM_API_KEY the app falls back to

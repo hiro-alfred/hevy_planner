@@ -80,3 +80,6 @@ category. Start here; conventions live in [[schema]].
   deterministic double-progression engine and not the LLM. BUILT 2026-08-11.
 - [[suggested-loads]] — history feeding plan generation: why a suggested starting
   weight stops one click short of a Hevy routine. BUILT 2026-08-11.
+- [[app-authentication]] — the gate: Google OIDC plus an allowlist, why the proxy
+  cannot cover server actions alone, and why a missing config is a 503 rather
+  than an open app. BUILT 2026-08-13.

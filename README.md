@@ -126,11 +126,107 @@ committed**. `.env.example` documents the expected variables:
 Weights are handled in **kg by default** (Hevy's API is kg-only); a display-only
 lbs preference is planned in settings.
 
-In the initial phase this is a **personal, single-user tool**: the app has no
-login/auth system yet, but the owner can still set their Hevy key through the in-app
-settings page rather than editing `.env` directly; `.env` remains available as an
-optional default. A later phase may let users supply their own LLM key from the UI as
-well, instead of `.env`.
+This is a **personal, single-user tool**: the owner sets their Hevy key through the
+in-app settings page rather than editing `.env` directly; `.env` remains available as
+an optional default. A later phase may let users supply their own LLM key from the UI
+as well, instead of `.env`.
+
+## Authentication
+
+The whole app is behind a login. Every page, every server action and every route
+handler requires a session; the only public paths are `/login` and the two OAuth
+legs under `/api/auth/`.
+
+> **Consider not using this at all.** Putting **Cloudflare Access** or **Tailscale**
+> in front of the app gives the same protection with zero application code and
+> nothing here to maintain or get wrong — no OAuth client to rotate, no session
+> secret to keep, no allowlist to edit. In-app auth is worth it only if the app must
+> be reachable from a plain browser on an untrusted network. Judge that first.
+
+### It refuses to serve when unconfigured
+
+Unlike the rest of this project, a missing auth configuration is **not** a silent
+degradation. The app answers every request with **HTTP 503** and names the variables
+it is missing. That is deliberate: `LLM_API_KEY` quietly falls back to rule-based
+plans and `SETTINGS_ENCRYPTION_KEY` quietly stores the Hevy key in plaintext, and
+"looks healthy while unprotected" is the exact failure this app cannot afford — it
+holds a Hevy Pro key and can create routines that the Hevy API has **no endpoint to
+delete**.
+
+### Choose a provider
+
+**Google (recommended).** Real federated identity, and Google permits
+`http://localhost` redirect URIs so it can be tested locally. What the owner must do:
+
+1. Go to <https://console.cloud.google.com/apis/credentials>, and create a project if
+   there is not one already.
+2. **Configure the OAuth consent screen.** "External" is fine; it can stay in
+   *Testing* with the owner as the only test user — no verification review needed.
+3. **Create credentials → OAuth client ID → Application type: Web application.**
+4. Under *Authorised redirect URIs* add exactly:
+   `<AUTH_ORIGIN>/api/auth/callback/google` — e.g.
+   `http://localhost:3000/api/auth/callback/google`. It must match character for
+   character, including the scheme and port.
+5. Copy the **Client ID** and **Client secret** back into `.env`.
+
+The values needed are then:
+
+| Variable | Value |
+| --- | --- |
+| `AUTH_SESSION_SECRET` | 32 random bytes: `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"` |
+| `GOOGLE_CLIENT_ID` | from step 5 |
+| `GOOGLE_CLIENT_SECRET` | from step 5 |
+| `AUTH_ORIGIN` | the app's public origin, no trailing path (`http://localhost:3000`) |
+| `AUTH_ALLOWED_EMAILS` | comma-separated allowlist, e.g. the owner's Google address |
+
+Sign-in uses the authorization-code flow with PKCE; the `id_token` is verified
+against Google's JWKS (RS256, plus `iss`/`aud`/`exp`/`nonce`), and the address must
+be `email_verified` **and** on `AUTH_ALLOWED_EMAILS`. An empty allowlist is refused
+at boot rather than admitting every Google account in existence.
+
+**Hevy API key (fallback).** Hevy publishes **no OAuth** — the pinned spec in
+`docs/hevy-openapi.json` has 14 paths, no token endpoint and no `securitySchemes`,
+only an `api-key` header on all 22 authenticated operations. So this mode is a
+**shared-secret password gate, not identity**: the visitor pastes a key, the server
+spends it on `GET /v1/user/info`, and the returned `data.id` is checked against
+`AUTH_ALLOWED_HEVY_USER_IDS`. Anyone holding the key is the owner as far as the app
+can tell, and signing out cannot revoke it — rotate the key in the Hevy app for that.
+Its one merit is needing no external setup, which makes it the way to try the gate
+before creating an OAuth client. Find your id with:
+
+```bash
+curl -H "api-key: <your key>" https://api.hevyapp.com/v1/user/info
+```
+
+Set `AUTH_ALLOWED_HEVY_USER_IDS` (and `AUTH_SESSION_SECRET`) and this mode is
+selected automatically. Set `AUTH_PROVIDER` only if both providers are configured.
+
+**Apple** is not implemented. It requires a paid Apple Developer account, so it needs
+the owner's confirmation before it is worth building.
+
+### Running unauthenticated, locally
+
+`AUTH_DISABLED=true` runs the app with no gate. It is **refused when
+`NODE_ENV=production`**, it is not forwarded by `docker-compose.yml`, and every page
+carries an `AUTH DISABLED` badge in the header so an open instance can never be
+mistaken for a protected one. Use it for local development only.
+
+### Sessions
+
+An encrypted (AES-256-GCM) `HttpOnly`, `SameSite=Lax` cookie, `Secure` in production,
+holding only the provider, subject, label and expiry. There is no sessions table:
+with one user, "sign out everywhere" is rotating `AUTH_SESSION_SECRET`, which
+invalidates every token ever issued. `AUTH_SESSION_TTL_HOURS` defaults to 720 hours
+(30 days).
+
+| Variable | Purpose |
+| --- | --- |
+| `AUTH_SESSION_SECRET` | **Required.** 32 bytes, base64 or hex. Its own secret — never reuse `SETTINGS_ENCRYPTION_KEY` |
+| `AUTH_PROVIDER` | *(optional)* `google` or `hevy-key`; only needed to disambiguate |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `AUTH_ORIGIN` / `AUTH_ALLOWED_EMAILS` | Google sign-in |
+| `AUTH_ALLOWED_HEVY_USER_IDS` | Hevy-key gate |
+| `AUTH_SESSION_TTL_HOURS` | *(optional)* session lifetime, default 720 |
+| `AUTH_DISABLED` | *(optional)* `true` disables auth; development only |
 
 ## Repository structure
 

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { type ActionState, errorState, successState } from "@/lib/action-state";
+import { requireIdentity } from "@/lib/auth/guard";
 import { getCandidates, getTemplateById, getTemplatesByIds } from "@/lib/hevy/catalog";
 import { withPlanLock } from "@/lib/hevy/plan-lock";
 import { getPlan, savePlanEdit, saveRequest } from "@/lib/plans";
@@ -48,6 +49,10 @@ export async function loadAlternativesAction(
   dayIndex: number,
   exerciseIndex: number,
 ): Promise<AlternativesResult> {
+  // Read-only, but still gated: this returns the plan's contents, and an action
+  // that only reads is still an action anyone can POST to.
+  await requireIdentity();
+
   const row = await getPlan(planId);
   if (!row?.plan) return { options: [], message: "This plan is no longer available." };
 
@@ -116,6 +121,8 @@ export async function swapExerciseAction(
   expectedTemplateId: string,
   replacementId: string,
 ): Promise<ActionState> {
+  await requireIdentity();
+
   // Never trust the client's id: the picker cannot produce an unknown one, but
   // the action is a public entry point, and an id the catalog does not know
   // would fail at sync time — long after the user accepted the plan.
@@ -174,6 +181,8 @@ export async function clearExclusionAction(
   planId: number,
   templateId: string | null,
 ): Promise<ActionState> {
+  await requireIdentity();
+
   const result = await withPlanLock(planId, async (): Promise<ActionState> => {
     const row = await getPlan(planId);
     if (!row) return errorState("Plan not found.");

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { type ActionState, errorState, successState } from "@/lib/action-state";
+import { requireIdentity } from "@/lib/auth/guard";
 import { describeHevyError } from "@/lib/hevy/errors";
 import { getHevyClient, NO_KEY_MESSAGE } from "@/lib/hevy/session";
 import { syncPlan } from "@/lib/hevy/sync";
@@ -32,6 +33,11 @@ export async function createPlanAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  // First statement, and outside every try below: requireIdentity() signals by
+  // throwing (redirect), so a surrounding catch would turn the gate into an
+  // error message and let the action carry on.
+  await requireIdentity();
+
   let request: PlanRequest;
   try {
     request = parseRequest(formData);
@@ -64,6 +70,8 @@ export async function createPlanAction(
  * describing a plan that no longer exists.
  */
 export async function regeneratePlanAction(planId: number): Promise<ActionState> {
+  await requireIdentity();
+
   const row = await getPlan(planId);
   if (!row) return errorState("Plan not found.");
 
@@ -86,6 +94,10 @@ export async function regeneratePlanAction(planId: number): Promise<ActionState>
  * first sync, PUT full-replace on every sync after that.
  */
 export async function syncPlanAction(planId: number): Promise<ActionState> {
+  // The most consequential action in the app: it WRITES to the real Hevy
+  // account, and the Hevy API has no delete endpoint to undo it with.
+  await requireIdentity();
+
   const client = await getHevyClient();
   if (!client) return errorState(NO_KEY_MESSAGE);
 
@@ -113,6 +125,8 @@ export async function syncPlanAction(planId: number): Promise<ActionState> {
 }
 
 export async function deletePlanAction(planId: number): Promise<ActionState> {
+  await requireIdentity();
+
   await deletePlan(planId);
   revalidatePath("/");
   redirect("/");

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Suspense } from "react";
 import { RevealObserver } from "@/components/reveal-observer";
+import { SessionBadge } from "@/components/session-badge";
 import { SiteHeader } from "@/components/site-header";
 import "./globals.css";
 
@@ -29,7 +31,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* Renders nothing into the document flow — it only toggles a class on
             elements that carry .reveal. */}
         <RevealObserver />
-        <SiteHeader />
+        {/* Suspense keeps the session lookup off the critical path: the nav
+            renders immediately and the badge fills in, rather than the whole
+            shell waiting on a cookie decrypt. */}
+        <SiteHeader
+          trailing={
+            <Suspense fallback={null}>
+              <SessionBadge />
+            </Suspense>
+          }
+        />
         <main className="flex-1">{children}</main>
       </body>
     </html>

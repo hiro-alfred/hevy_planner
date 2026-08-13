@@ -3,6 +3,7 @@ import { buttonClasses } from "@/components/button-styles";
 import { Card } from "@/components/card";
 import { StatTile } from "@/components/stat-tile";
 import { StatusChip, type ChipTone } from "@/components/status-chip";
+import { requireIdentity } from "@/lib/auth/guard";
 import { getCatalogStatus } from "@/lib/hevy/catalog";
 import { listPlans, type PlanListItem } from "@/lib/plans";
 import { getHevyKeyStatus } from "@/lib/settings";
@@ -54,6 +55,9 @@ function PlanRow({ plan, index }: { plan: PlanListItem; index: number }) {
  * and issuing them in sequence would just add round trips.
  */
 export default async function Home() {
+  // Defence in depth: the proxy already redirects an unauthenticated GET, but
+  // a check here means the gate survives a matcher change.
+  await requireIdentity();
   const [plans, catalog, keyStatus] = await Promise.all([
     listPlans(),
     getCatalogStatus(),

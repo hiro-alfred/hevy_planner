@@ -1,8 +1,8 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { StatusChip } from "@/components/status-chip";
 
 const NAV = [
   { href: "/", label: "Plans" },
@@ -14,7 +14,12 @@ const NAV = [
 
 // A client component only so the current route can be marked. Everything else
 // here would render fine on the server.
-export function SiteHeader() {
+//
+// `trailing` is a slot, not a rendered value: the layout passes the async
+// SessionBadge server component through it. A client component cannot import a
+// server one, but it can render one handed to it as a child — which is what
+// keeps the cookie read on the server and out of this bundle.
+export function SiteHeader({ trailing }: { trailing?: ReactNode }) {
   const pathname = usePathname();
 
   return (
@@ -44,9 +49,7 @@ export function SiteHeader() {
           })}
         </ul>
 
-        <span className="ml-auto hidden sm:inline-flex">
-          <StatusChip tone="live">Connected</StatusChip>
-        </span>
+        <span className="ml-auto hidden sm:inline-flex">{trailing}</span>
       </nav>
     </header>
   );

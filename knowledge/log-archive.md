@@ -4,7 +4,7 @@ aliases: [log archive]
 tags: [meta, journal]
 type: meta
 created: 2026-08-08
-updated: 2026-08-11
+updated: 2026-08-13
 sources: []
 ---
 
@@ -154,3 +154,89 @@ Oldest at the top; keep original entry lines verbatim.
   Lesson worth keeping: "the protocol type is wrong" did not imply "the driver
   gets it wrong" — the vendor shipped a compatibility path I had not accounted
   for, and only running it showed that. Still untested: the container path.
+- 2026-08-08 — First real catalog refresh failed; two spec-vs-reality bugs found
+  and fixed. `describeHevyError` showed only "Catalog refresh failed." because
+  the underlying error was neither a HevyApiError nor a UserFacingError, so
+  diagnosis needed a one-off repro harness. The error was MariaDB
+  `ER_NO_DEFAULT_FOR_FIELD` on `equipment_category`: the live API sends
+  **`equipment`**, while the pinned spec declares `equipment_category`, so the
+  value was `undefined` on all 452 templates, drizzle emitted `DEFAULT`, and the
+  NOT NULL column rejected it. Second bug found while diffing live values
+  against `constants.ts`: `REP_BASED_TYPES` had been guessed and listed two
+  types that do not exist (`bodyweight_reps`, `bodyweight_assisted_reps`) while
+  omitting the two that do (`bodyweight_weighted`, `bodyweight_assisted`) — so
+  every assisted pull-up and weighted dip was silently excluded from candidate
+  lists. Both recorded as traps in [[hevy-api]]. Root cause of both: the stub
+  client was written from the spec, so the suite validated the spec rather than
+  the API — green tests, broken product. Fixtures now match observed payloads,
+  `assertStorable` fails before the transaction naming the missing field, and
+  unexpected errors are logged server-side so the next one needs no harness.
+  Verified against the live API: 452 cached, all 9 equipment categories, 6
+  assisted/weighted lat exercises now candidates where there were 0. 67 tests.
+- 2026-08-08 — **Encrypted the Hevy key at rest** (AES-256-GCM,
+  `src/lib/secret-box.ts`), reversing the plaintext decision in
+  [[plan-pipeline]] at the owner's request. The original reasoning was not
+  wrong, it was scoped to a premise that [[mariadb-migration]] removed: with a
+  database file on the app's own disk, DB compromise really was a subset of host
+  compromise. With MariaDB, dumps and backups travel on their own, so the
+  database-only case is real and this is what covers it. Stated the limit in
+  code, README and [[key-handling]] rather than overselling: the key lives in
+  the app host's environment, so host compromise still yields both halves.
+  Hashing was never an option — the credential must be replayed to Hevy, not
+  merely verified. Details worth remembering: the setting key is GCM additional
+  authenticated data so a ciphertext cannot be moved between rows; a plaintext
+  row still reads, and `migrateSecretsToEncrypted()` upgrades it at boot
+  preserving `updated_at`; `getHevyKeyStatus` had to decrypt before masking or
+  the UI would have shown the last 4 chars of base64; a wrong/rotated key
+  reports `undecryptable` rather than "not configured", so the user re-enters
+  instead of hunting. Verified on the live box: existing key upgraded in place
+  ("encrypted 1 stored secret(s)"), row now `enc:v1:…`, app still works.
+  82 tests.
+- 2026-08-08 — **LLM provider set to DeepSeek** at the owner's request; default
+  `deepseek-v4-pro`, `anthropic` kept wired. Checking the live docs instead of
+  trusting recall paid for itself twice. (1) `deepseek-chat` and
+  `deepseek-reasoner` were RETIRED on 2026-07-24 — they were routing labels for
+  the non-thinking/thinking modes of `deepseek-v4-flash`, not models, and there
+  is no redirect. The AI SDK's `DeepSeekChatModelId` type still lists only those
+  two, so autocomplete hands you a dead value; `getLlmConfig` now rejects them
+  by name and says what to use. (2) `@ai-sdk/deepseek` never sets
+  `supportsStructuredOutputs`, so `generateObject` uses `json_object` with the
+  schema in a system message rather than strict `json_schema`, and DeepSeek
+  documents that mode occasionally returning empty content — tolerable only
+  because the existing retry + rule-based fallback already absorbs it. Both
+  recorded in [[plan-generation]]. Also: `ProviderOptions` is declared but not
+  exported by `ai`; the real type is `SharedV4ProviderOptions` from
+  `@ai-sdk/provider`, now a direct dependency since we import from it. 90 tests.
+- 2026-08-08 — **Started clearing the container path**: enabled WSL2's two
+  Windows features (`Microsoft-Windows-Subsystem-Linux`, `VirtualMachinePlatform`)
+  elevated via dism, which returned 3010 — reboot required before a hypervisor
+  exists, so Docker itself is still uninstalled. Reading the machine first was
+  worth it: `wsl --status` printing usage and ignoring `WSL_UTF8` looks like a
+  broken WSL but only means the inbox stub with the feature off, and
+  `HypervisorPresent=False` alongside `VirtualizationFirmwareEnabled=True` is
+  what said the blocker was Windows features rather than BIOS. Inspecting the
+  repo for the same reason found two compose faults the reboot would have run
+  straight into, both now fixed in [[deployment]]: the `app` service passed
+  `ANTHROPIC_API_KEY`, dead since the provider became configurable, so the
+  container would never have seen `LLM_API_KEY` — and because a missing key
+  falls back to the rule generator rather than erroring, that reads as a healthy
+  stack writing worse plans, the exact confusion [[plan-generation]] warns
+  about. Second, the hard-coded `3000:3000` would have failed its bind against
+  the node process already on 3000; the host side is now `${APP_PORT:-3000}`.
+  Worth keeping: the `app` service has no `env_file:`, so its environment is
+  exactly what `environment:` lists — `.env` reaching compose does not mean it
+  reaches the container.
+- 2026-08-09 — **The container path runs.** Docker Desktop 4.85.0 / engine
+  29.6.2 / compose v5.3.1 on WSL 2.7.11; `compose up -d --wait` brings both
+  services up healthy, the boot migration builds the whole schema on an empty
+  volume, and `/`, `/plans/new`, `/settings` answer 200. 103/103 tests also pass
+  against the pinned 11.4 image, closing the 12.3-vs-11.4 worry. The lesson is
+  the one failure: `docker compose build` died on `COPY /app/public` because
+  there is no `public/` — the favicon is App Router metadata under `src/app/` —
+  and COPY errors on a missing source rather than skipping it. Every prior
+  reading of that Dockerfile, including the [[deployment]] page describing the
+  runtime stage, listed `public` as if it existed; nothing but running the build
+  was going to catch it. Also worth keeping: the boot migration logs nothing on
+  success, so `SHOW TABLES` is the evidence it ran, and the retry path in
+  `src/lib/db/migrate.ts` is still unfired because `depends_on` never lets the
+  app meet a database that is not already up.

@@ -4,6 +4,7 @@ import { ActionButton } from "@/components/action-button";
 import { Card } from "@/components/card";
 import { ChipLinks, SearchField } from "@/components/filter-bar";
 import { StatTile } from "@/components/stat-tile";
+import { requireIdentity } from "@/lib/auth/guard";
 import { getHistoryStatus } from "@/lib/hevy/workout-sync";
 import { relativeDay } from "@/lib/records/format";
 import { listExerciseRecords } from "@/lib/records/metrics";
@@ -45,6 +46,9 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 export default async function RecordsPage({ searchParams }: PageProps<"/records">) {
+  // Defence in depth: the proxy already redirects an unauthenticated GET, but
+  // a check here means the gate survives a matcher change.
+  await requireIdentity();
   const query = await searchParams;
   const search = typeof query.q === "string" ? query.q : "";
   const sort = parseSort(query.sort);

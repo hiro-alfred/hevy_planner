@@ -5,6 +5,7 @@ import { ActionButton } from "@/components/action-button";
 import { buttonClasses } from "@/components/button-styles";
 import { Card } from "@/components/card";
 import { StatusChip } from "@/components/status-chip";
+import { requireIdentity } from "@/lib/auth/guard";
 import { getTemplatesByIds } from "@/lib/hevy/catalog";
 import { getSyncState } from "@/lib/hevy/sync";
 import { getPlan } from "@/lib/plans";
@@ -32,6 +33,9 @@ function Notice({ tone, children }: { tone: "info" | "warn"; children: React.Rea
 }
 
 export default async function PlanPage({ params, searchParams }: PageProps<"/plans/[id]">) {
+  // Defence in depth: the proxy already redirects an unauthenticated GET, but
+  // a check here means the gate survives a matcher change.
+  await requireIdentity();
   const planId = Number((await params).id);
   if (!Number.isInteger(planId)) notFound();
 

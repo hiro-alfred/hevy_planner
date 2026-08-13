@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { type ActionState, errorState, successState } from "@/lib/action-state";
+import { requireIdentity } from "@/lib/auth/guard";
 import { refreshCatalog } from "@/lib/hevy/catalog";
 import { HevyClient } from "@/lib/hevy/client";
 import { describeHevyError } from "@/lib/hevy/errors";
@@ -23,6 +24,10 @@ export async function saveHevyKeyAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  // Without this, an unauthenticated POST could REPLACE the owner's stored Hevy
+  // key with the attacker's — quietly redirecting every later sync.
+  await requireIdentity();
+
   let key: string;
   try {
     // Shape-check FIRST: a malformed key must never reach the fetch layer,
@@ -43,6 +48,8 @@ export async function saveHevyKeyAction(
 }
 
 export async function testConnectionAction(): Promise<ActionState> {
+  await requireIdentity();
+
   const client = await getHevyClient();
   if (!client) return errorState(NO_KEY_MESSAGE);
 
@@ -55,6 +62,8 @@ export async function testConnectionAction(): Promise<ActionState> {
 }
 
 export async function clearHevyKeyAction(): Promise<ActionState> {
+  await requireIdentity();
+
   try {
     await clearHevyApiKey();
   } catch (error) {
@@ -71,6 +80,8 @@ export async function clearHevyKeyAction(): Promise<ActionState> {
  * nature (one request per 100 templates) — the UI shows a pending state.
  */
 export async function refreshCatalogAction(): Promise<ActionState> {
+  await requireIdentity();
+
   const client = await getHevyClient();
   if (!client) return errorState(NO_KEY_MESSAGE);
 

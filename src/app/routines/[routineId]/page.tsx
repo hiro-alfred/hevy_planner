@@ -4,10 +4,11 @@ import { notFound } from "next/navigation";
 import { Card } from "@/components/card";
 import { StatTile } from "@/components/stat-tile";
 import { StatusChip } from "@/components/status-chip";
+import { requireIdentity } from "@/lib/auth/guard";
 import { HevyApiError } from "@/lib/hevy/client";
 import { describeHevyError } from "@/lib/hevy/errors";
-import { estimateMinutes } from "@/lib/hevy/routine-format";
 import { getRoutineDetail, type RoutineDetail } from "@/lib/hevy/routine-detail";
+import { estimateMinutes } from "@/lib/hevy/routine-format";
 import { getHevyClient, NO_KEY_MESSAGE } from "@/lib/hevy/session";
 import { relativeDay } from "@/lib/records/format";
 import { RoutineExercise } from "./routine-exercise";
@@ -114,6 +115,9 @@ function Detail({ routine }: { routine: RoutineDetail }) {
 }
 
 export default async function RoutinePage({ params }: PageProps<"/routines/[routineId]">) {
+  // Defence in depth: the proxy already redirects an unauthenticated GET, but
+  // a check here means the gate survives a matcher change.
+  await requireIdentity();
   const routineId = decodeURIComponent((await params).routineId);
   const client = await getHevyClient();
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Card } from "@/components/card";
 import { ChipLinks, SearchField } from "@/components/filter-bar";
 import { StatTile } from "@/components/stat-tile";
+import { requireIdentity } from "@/lib/auth/guard";
 import { describeHevyError } from "@/lib/hevy/errors";
 import { getAccountRoutines, type AccountRoutines } from "@/lib/hevy/routines";
 import { getHevyClient, NO_KEY_MESSAGE } from "@/lib/hevy/session";
@@ -69,6 +70,9 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 export default async function RoutinesPage({ searchParams }: PageProps<"/routines">) {
+  // Defence in depth: the proxy already redirects an unauthenticated GET, but
+  // a check here means the gate survives a matcher change.
+  await requireIdentity();
   const query = await searchParams;
   const search = typeof query.q === "string" ? query.q : "";
   const filter: Filter =

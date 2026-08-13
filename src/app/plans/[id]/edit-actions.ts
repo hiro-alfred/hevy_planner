@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { type ActionState, errorState, successState } from "@/lib/action-state";
+import { requireIdentity } from "@/lib/auth/guard";
 import { describeHevyError } from "@/lib/hevy/errors";
 import { withPlanLock } from "@/lib/hevy/plan-lock";
 import { forkPlan, getPlan, savePlan } from "@/lib/plans";
@@ -43,6 +44,8 @@ export async function editExerciseAction(
     weightKg?: number | null;
   },
 ): Promise<ActionState> {
+  await requireIdentity();
+
   const parsed = exerciseEditSchema.safeParse(input);
   if (!parsed.success) {
     return errorState(
@@ -96,6 +99,8 @@ export async function editExerciseAction(
  * implies now.
  */
 export async function applySuggestedLoadsAction(planId: number): Promise<ActionState> {
+  await requireIdentity();
+
   const result = await withPlanLock(planId, async (): Promise<ActionState> => {
     const row = await getPlan(planId);
     if (!row?.plan) return errorState("Plan not found.");
@@ -127,6 +132,8 @@ export async function applySuggestedLoadsAction(planId: number): Promise<ActionS
  * a run of tweaks that you want to be able to abandon.
  */
 export async function duplicatePlanAction(planId: number): Promise<ActionState> {
+  await requireIdentity();
+
   const row = await getPlan(planId);
   if (!row) return errorState("Plan not found.");
 
@@ -152,6 +159,8 @@ export async function saveRequestAsNewPlanAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  await requireIdentity();
+
   const source = await getPlan(sourcePlanId);
   if (!source) return errorState("The plan being edited no longer exists.");
 

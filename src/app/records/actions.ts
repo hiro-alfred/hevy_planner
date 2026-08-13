@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { type ActionState, errorState, successState } from "@/lib/action-state";
+import { requireIdentity } from "@/lib/auth/guard";
 import { describeHevyError } from "@/lib/hevy/errors";
 import { getHevyClient, NO_KEY_MESSAGE } from "@/lib/hevy/session";
 import { syncWorkoutHistory } from "@/lib/hevy/workout-sync";
@@ -21,6 +22,8 @@ import { syncWorkoutHistory } from "@/lib/hevy/workout-sync";
  *   guarantees an edit moves it forward.
  */
 export async function syncHistoryAction(full: boolean): Promise<ActionState> {
+  await requireIdentity();
+
   const client = await getHevyClient();
   if (!client) return errorState(NO_KEY_MESSAGE);
 

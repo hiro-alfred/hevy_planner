@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ActionButton } from "@/components/action-button";
 import { Card } from "@/components/card";
 import { StatusChip } from "@/components/status-chip";
+import { requireIdentity } from "@/lib/auth/guard";
 import { getCatalogStatus } from "@/lib/hevy/catalog";
 import { getHevyKeyStatus } from "@/lib/settings";
 import { clearHevyKeyAction, refreshCatalogAction, testConnectionAction } from "./actions";
@@ -32,6 +33,9 @@ function Readout({ label, children }: { label: string; children: React.ReactNode
 }
 
 export default async function SettingsPage() {
+  // Defence in depth: the proxy already redirects an unauthenticated GET, but
+  // a check here means the gate survives a matcher change.
+  await requireIdentity();
   // Only the MASKED status crosses into the render tree — getHevyApiKey (the
   // raw value) is never called from a component.
   const [keyStatus, catalog] = await Promise.all([getHevyKeyStatus(), getCatalogStatus()]);

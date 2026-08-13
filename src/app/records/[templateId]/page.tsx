@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Card } from "@/components/card";
 import { StatTile } from "@/components/stat-tile";
 import { StatusChip } from "@/components/status-chip";
+import { requireIdentity } from "@/lib/auth/guard";
 import { getTemplateById } from "@/lib/hevy/catalog";
 import { formatDay, formatKg, relativeDay } from "@/lib/records/format";
 import { getExerciseRecords, type RecordSet } from "@/lib/records/metrics";
@@ -51,6 +52,9 @@ function RecordEntry({ label, record }: { label: string; record: RecordSet | nul
 }
 
 export default async function ExerciseRecordsPage({ params }: PageProps<"/records/[templateId]">) {
+  // Defence in depth: the proxy already redirects an unauthenticated GET, but
+  // a check here means the gate survives a matcher change.
+  await requireIdentity();
   const templateId = decodeURIComponent((await params).templateId);
 
   const records = await getExerciseRecords(templateId);

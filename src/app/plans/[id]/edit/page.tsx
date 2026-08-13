@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Card } from "@/components/card";
+import { requireIdentity } from "@/lib/auth/guard";
 import { getSyncState } from "@/lib/hevy/sync";
 import { getPlan } from "@/lib/plans";
 import { PlanForm } from "../../new/plan-form";
@@ -24,6 +25,9 @@ export const dynamic = "force-dynamic";
 // the fork creates a second set of routines rather than replacing the first.
 
 export default async function EditPlanPage({ params }: PageProps<"/plans/[id]/edit">) {
+  // Defence in depth: the proxy already redirects an unauthenticated GET, but
+  // a check here means the gate survives a matcher change.
+  await requireIdentity();
   const planId = Number((await params).id);
   if (!Number.isInteger(planId)) notFound();
 
