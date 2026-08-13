@@ -143,15 +143,22 @@ server-action click needs 6–8 s. Clicks match visible-text PREFIX, first match
 > cannot already exist in it.
 
 ## Next steps
-1. **Owner chooses an identity provider and fills `.env`.** Until then the app
-   answers 503 by design. Google is recommended — the README lists the exact
-   Cloud console steps and the five values needed. The fastest alternative is
-   `AUTH_ALLOWED_HEVY_USER_IDS` from
-   `curl -H "api-key: <key>" https://api.hevyapp.com/v1/user/info`.
-   **Or decide in-app auth is not wanted at all** and put Cloudflare Access or
-   Tailscale in front instead — same protection, zero code to maintain.
+1. **Owner has CHOSEN GOOGLE.** `.env.example` is now a Google-only setup
+   (`AUTH_PROVIDER=google` pinned, Hevy-key alternative commented out). The
+   owner fills four values in `.env`: `AUTH_PROVIDER=google`,
+   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AUTH_ALLOWED_EMAILS`.
+   `AUTH_SESSION_SECRET` and `AUTH_ORIGIN` are already set there.
 2. **Run the Google leg once for real** and confirm the redirect URI matches.
-   This is the only untested part of the round.
+   This is the only untested part of the round, and the immediate next task.
+2a. **THEN: multi-user with OPEN SIGNUP is the agreed direction** — every
+   visitor with a Google account gets their own plans, history and Hevy key.
+   NOT built; see the warning callout in [[app-authentication]] for the
+   measured scope and the four traps. **Until it lands, `AUTH_ALLOWED_EMAILS`
+   must contain the owner's address ONLY** — a second address today is a second
+   person with full control of the owner's Hevy key, not a second account.
+   Open signup also needs the consent screen Published (Testing caps at 100
+   manually-added test users) and raises an abuse question nobody has answered:
+   plan generation spends the OWNER's `LLM_API_KEY`.
 3. **Owner fixes `DATABASE_URL` in `.env`** so `npm run dev` boots against the
    real database; migrations `0001` and `0002` apply on that boot. Also check
    `SETTINGS_ENCRYPTION_KEY` decodes to 32 bytes.

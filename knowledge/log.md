@@ -226,3 +226,27 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   Not done: nobody has run the Google leg against a real OAuth client — it is
   covered by tests that sign their own tokens with a generated RSA key, which is
   not the same thing. Also rotated the five oldest entries into [[log-archive]].
+- 2026-08-13 — **Owner picked Google, and asked for real multi-user accounts.**
+  `.env.example` reworked into a Google-only setup (`AUTH_PROVIDER=google`
+  pinned, exact Cloud console steps, Hevy-key alternative commented out so it
+  cannot be selected by accident); verified both ways against `readAuthConfig` —
+  copied unfilled it refuses to serve and names the missing variables, and with
+  the four Google values supplied it resolves to mode "google" with the derived
+  redirect URI. Then the owner said they want OTHER USERS, and on being asked,
+  confirmed they mean **separate accounts per user with open signup**, not a
+  shared login. That reverses the single-user premise in
+  [[product-architecture]], so [[app-authentication]] gained a warning callout
+  rather than being left to read as settled.
+  Scoped before agreeing to build anything: **~49 query sites across 10 files**
+  plus 9 raw-SQL fragments. The risk is NOT the migration — it is the ownership
+  checks. `getPlan(5)` returns plan 5 to whoever asks, and unlike the auth gate a
+  missed `WHERE user_id` fails OPEN and silently. Four traps worth keeping:
+  `exercise_templates.is_custom` is per-ACCOUNT, so a shared catalog cache would
+  leak one user's custom lifts into another's candidate pool and produce plans
+  that break at sync; `settings` holds three per-user values globally
+  (`hevy_api_key`, `weight_unit`, `workout_sync_cursor`); existing rows need a
+  deliberate claiming step, because a user row cannot exist until a first Google
+  login supplies the `sub`; and **every user needs their own Hevy Pro
+  subscription**, since the pinned spec states the API is Pro-only.
+  Sequencing agreed with the owner: prove the Google login end to end FIRST,
+  design tenancy separately after. Nothing towards tenancy has been written.

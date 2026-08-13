@@ -34,6 +34,25 @@ allowlist entry grants access to *the* app's data, it does not own a slice of
 it. Two addresses on the list share one account and one Hevy key. No `users`
 table, and no migration `0003`.
 
+> [!warning] Superseded in intent 2026-08-13 — the owner wants real accounts
+> The owner has since decided the app should become **multi-user with open
+> signup**: every visitor with a Google account gets their own plans, history
+> and Hevy key. That is NOT built, and this page describes what IS built.
+> Sequencing agreed: prove the Google login end to end first, then design
+> tenancy separately. **Until tenancy lands, `AUTH_ALLOWED_EMAILS` must stay
+> restricted to the owner** — an extra address today is not a new account, it
+> is a second person with full control of the owner's Hevy key and the ability
+> to write irreversible routines to the owner's account.
+> Scope measured: ~49 query sites across 10 files, 9 raw-SQL fragments. The
+> risk is not the migration but the ownership checks — `getPlan(5)` currently
+> returns plan 5 to anyone, and a missed `WHERE user_id` fails OPEN and
+> silently. Four traps: `exercise_templates.is_custom` is per-ACCOUNT so the
+> catalog cache must split; `settings` holds three per-user values globally
+> (`hevy_api_key`, `weight_unit`, `workout_sync_cursor`); existing rows need a
+> deliberate claiming step because a user row only exists after a first Google
+> login; and **every user needs their own Hevy Pro subscription**, since the
+> pinned spec says the API is Pro-only.
+
 ## Why the proxy cannot be the whole answer
 
 Next.js 16 renamed `middleware.ts` to **`proxy.ts`** and moved it to the Node
