@@ -65,7 +65,12 @@ Four things from this round worth carrying forward:
 - **The animation gap was a missing LOADING state, not a missing effect.** Every
   route is `force-dynamic`, so a prefetch delivers only the static shell and a
   click paints NOTHING until the server finishes — worst on `/routines`, which
-  calls Hevy live on every navigation. `loading.tsx` + `.ui-skeleton` is the fix.
+  calls Hevy live on every navigation. `loading.tsx` + `.ui-skeleton` is the fix
+  — **and adding it is what caused fix 1 above.** The diagnosis was right and the
+  remedy introduced a worse bug than the one it cured, because a `loading.tsx`
+  changes WHEN a route's content commits, and one client component in the layout
+  had quietly depended on the old timing. Adding a loading state to any further
+  route is now safe, but check what else keys off `usePathname()` first.
 - **A busy button looked identical to an unavailable one.** `:disabled` set
   `opacity: .45` on actions that run for MINUTES. `.ui-btn--working` is 0.75 plus
   a sweeping underline, indeterminate because none of those actions reports
@@ -174,8 +179,16 @@ does everything except the cookie.
 
 Chrome is `C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`; add
 `--force-prefers-reduced-motion` or the capture freezes mid-reveal with later
-cards at opacity 0 — which looks exactly like a page that rendered blank. Never
-trust a capture narrower than 500px. Screenshot paths must be **Windows** paths.
+cards at opacity 0. Never trust a capture narrower than 500px. Screenshot paths
+must be **Windows** paths.
+
+> [!warning] A mid-reveal capture and a genuinely blank page look IDENTICAL
+> Both show chrome with `.reveal` content missing, and this round produced one of
+> each — a capture artefact that was harmless, and the real `loading.tsx` bug that
+> was not. The flag hides the difference, so it is worth one extra check before
+> concluding a page renders fine: evaluate
+> `[...document.querySelectorAll(".reveal")].filter(n => !n.classList.contains("is-visible")).length`
+> and require **0**. That is what actually proved the fix.
 
 > [!warning] `.env` must never be read (CLAUDE.md)
 > Append new keys rather than rewriting the file, and only with names that
