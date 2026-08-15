@@ -4,12 +4,14 @@ aliases: [workout history, history cache, workout sync, records data]
 tags: [subsystem, hevy, cache, records]
 type: subsystem
 created: 2026-08-11
-updated: 2026-08-11
+updated: 2026-08-15
 sources:
   [
     src/lib/hevy/workout-sync.ts,
     src/lib/hevy/workout-rows.ts,
     src/lib/hevy/client.ts,
+    src/lib/records/format.ts,
+    docker-compose.yml,
     src/lib/db/schema.ts,
     drizzle/0002_mighty_iron_patriot.sql,
   ]
@@ -22,6 +24,26 @@ has planned. Feeds [[exercise-records]] and, through it, the recommendations des
 in [[progressive-overload]]. Strictly read-only against Hevy: this subsystem issues
 GETs and nothing else, which is what makes it safe next to the irreversible write path
 in [[hevy-sync]].
+
+> [!warning] Dates are the TRAINEE's calendar days, and the server must be told
+> Hevy stores workout times as UTC instants, and every date in this app is rendered
+> on the SERVER — where a container defaults to UTC. Two bugs came out of that on
+> 2026-08-15, both reported from the real app:
+>
+> - `relativeDay` divided elapsed milliseconds by 24 hours, counting 24-hour blocks
+>   rather than days. A session finished at 20:00 and read at 10:00 the next morning
+>   is 14 hours old, which floored to 0 and printed **"today"** for a workout the
+>   trainee did yesterday.
+> - `formatDay` sliced the first 10 characters of the ISO string, which is the UTC
+>   date. East of UTC an early-morning session carries the previous day's UTC date,
+>   so the app printed the day before the one it happened on.
+>
+> Both now work in local calendar days (`calendarDaysBetween` rounds rather than
+> floors, so a DST shift's 23- or 25-hour gap does not report yesterday as today),
+> and `TZ` is set on the app service in `docker-compose.yml` — defaulting to UTC,
+> which is honest for an unconfigured deployment, and set per-owner in `.env`.
+> `daysSince` is exported so the records index's freshness dot is computed from the
+> same number as the label beside it. See [[exercise-records]].
 
 ## Why a cache and not on-demand reads
 

@@ -17,8 +17,31 @@ Keep the four sections below; they are the template.
 
 ## Active task
 Nothing in flight. The last round built **`/profile`** ([[standing-profile]]) and
-four **animations** ([[ui-design-system]]), both asked for in one go. The gate,
-the planner and the sync path are exactly as previous rounds left them.
+four **animations** ([[ui-design-system]]), then **fixed three bugs the owner
+found in the running app within the hour**. The gate, the planner and the sync
+path are exactly as previous rounds left them.
+
+**The three fixes, all shipped and redeployed:**
+
+1. **`loading.tsx` blanked two whole pages** — the round's own regression, and
+   the important one. `RevealObserver` scanned for `.reveal` once per PATHNAME
+   change; with a `loading.tsx` the router commits the FALLBACK first, so the
+   pathname changed while the DOM held only skeletons (no `.reveal`), and when
+   the real content streamed into the Suspense boundary the layout did not
+   re-render, so the scan never ran again. `.reveal` ships at `opacity: 0`, so
+   `/routines` and `/profile` showed their chrome and nothing else. The observer
+   now also runs a `MutationObserver` over `document.body`. **Neither obvious fix
+   works**: dropping the empty-list early return changes nothing (the observer
+   and the failsafe both act on the list captured at scan time), and arming the
+   failsafe unconditionally fails because `/routines` routinely lands past
+   1600 ms. General rule: *a layout-level effect keyed on `usePathname()` does
+   not see a route's content — it sees whatever that route commits first.*
+2. **"today" for a workout done yesterday.** `relativeDay` counted 24-hour blocks,
+   not calendar days: a session at 20:00 read at 10:00 is 14 h old, floors to 0.
+   Now local calendar days, ROUNDED so a DST 23/25-hour gap cannot misreport.
+3. **Server rendered dates in UTC.** The container had no `TZ`, so it ran 9 hours
+   behind the owner and `formatDay`'s `iso.slice(0, 10)` printed UTC's date.
+   `TZ` is now on the app service (`${TZ:-UTC}`) and set in `.env`.
 
 **What `/profile` is.** The answers that do not change between plans, saved once
 and used to pre-fill every later plan request. `/plans/new` rendered
@@ -62,9 +85,18 @@ Earlier rounds, unchanged: the split sign-in screen, the gate itself
 [[exercise-alternatives]], [[plan-editing]], the Graphite theme.
 
 ## State reached
-- `tsc`, lint, `next build`, **383 vitest tests** (366 before; +17 new across
-  `profile-defaults.test.ts` and the DB-backed `profile-store.test.ts`) and 14
-  wiki tests all green.
+- **REDEPLOYED to :3000** and verified: `/login` 200, `/` `/profile` `/routines`
+  307 to the gate, boot log clean, migration 0003 applied (4 migrations,
+  `trainee_profile` present), container clock now `Asia/Tokyo`.
+- `tsc`, lint, `next build`, **396 vitest tests** (366 before this round; +17 for
+  the profile, +13 for `format.test.ts`) and 14 wiki tests all green.
+- **The reveal fix is verified on a CLIENT-SIDE navigation**, which is the case
+  that was deterministically broken — landing on `/records` and clicking the nav
+  link, not a hard load. `/profile` renders in full; on `/routines`,
+  `document.querySelectorAll(".reveal")` reports `total=2 hidden=0`.
+- **The date fix is verified against the reported case**: a workout stored at
+  `2026-08-14T11:00:00Z` (= 20:00 Tokyo, yesterday) now reads **"yesterday"** on
+  `/records`. Under the old code it read "today".
 - **Screenshotted against a real running server**, since green checks prove
   nothing about a look. `/profile` renders with a 6/8 dial at 75%, the identity
   strip, the full form, the three stat tiles and the muscle-share chips;
@@ -81,8 +113,6 @@ Earlier rounds, unchanged: the split sign-in screen, the gate itself
   it under production.
 - `scripts/seed-demo-history.mjs` filled the preview with 24 templates, 14
   workouts and 42 sets, which is what made the stats real rather than zeroes.
-- **NOT redeployed to :3000.** The docker image still serves the previous build;
-  `docker compose up -d --build` is what publishes this round.
 - Still nothing has met a **real Hevy account** — the write path and the workout
   endpoints remain spec-shaped only.
 
@@ -152,11 +182,13 @@ trust a capture narrower than 500px. Screenshot paths must be **Windows** paths.
 > cannot already exist in it.
 
 ## Next steps
-1. **Redeploy** — `docker compose up -d --build` — so :3000 serves `/profile` and
-   migration 0003 runs against the real database.
-2. **Confirm the owner can sign in with Google end to end** on :3000, then use
+1. **Confirm the owner can sign in with Google end to end** on :3000, then use
    `/profile` for real: save a profile, build a plan from it, clear it. That is
    the round trip nothing has exercised.
+2. **Re-check `/routines` with a real Hevy key.** The reveal fix was proven on a
+   preview with no key, so the page under test showed 2 reveal elements rather
+   than the owner's 12 routine rows. The mechanism is the same, but the owner's
+   actual screen is the proof that matters.
 3. **THEN: multi-user with OPEN SIGNUP is the agreed direction** — see the
    warning callout in [[app-authentication]] for the measured scope (~49 query
    sites, 9 raw-SQL fragments) and the four traps. `trainee_profile` joins that

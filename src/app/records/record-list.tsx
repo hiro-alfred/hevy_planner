@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { StatusChip, type ChipTone } from "@/components/status-chip";
-import { formatKg, relativeDay } from "@/lib/records/format";
+import { daysSince, formatKg, relativeDay } from "@/lib/records/format";
 import type { ExerciseRecordSummary } from "@/lib/records/metrics";
 
 // The records index, as rows.
@@ -21,7 +21,10 @@ const STALE_DAYS = 21;
  * the reader to decode it instead of read it.
  */
 function freshness(lastPerformedAt: string, now: Date): { tone: ChipTone; label: string } {
-  const days = Math.floor((now.getTime() - new Date(lastPerformedAt).getTime()) / 86_400_000);
+  // Shared with the label beside it. This used to divide elapsed milliseconds
+  // by 24 hours on its own, so the dot and the words could be computed from
+  // two different numbers on the same row.
+  const days = daysSince(lastPerformedAt, now);
   if (days <= 7) return { tone: "ok", label: relativeDay(lastPerformedAt, now) };
   if (days <= STALE_DAYS) return { tone: "warn", label: relativeDay(lastPerformedAt, now) };
   return { tone: "idle", label: relativeDay(lastPerformedAt, now) };

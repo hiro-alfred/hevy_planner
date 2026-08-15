@@ -168,6 +168,34 @@ way to show. None moves in the accent colour, and none is ambient:
   all**: the card already carries `.reveal`, `RevealObserver` adds `.is-visible`, and
   the stylesheet transitions `stroke-dashoffset` off that one class change.
 
+> [!warning] Adding a `loading.tsx` blanked two entire pages
+> Shipped and caught by the owner the same day. `RevealObserver` scanned for
+> `.reveal` once per **pathname** change, which was correct only while every route
+> committed its content in the same render as its URL. With a `loading.tsx` the
+> router commits the **fallback** first: `usePathname()` already reports the new
+> route while the DOM holds only skeletons, which carry no `.reveal`, so the scan
+> found nothing — and when the real content streamed in it swapped into the Suspense
+> boundary **without re-rendering the layout**, so `[pathname]` never changed and the
+> scan never ran again. `.reveal` ships at `opacity: 0`, so `/routines` and
+> `/profile` rendered their non-revealing chrome and nothing else.
+>
+> The symptom is diagnostic: on `/routines` the notice, filter chips, search box and
+> group header showed, while the hero, the stat tiles and all six routine rows were
+> invisible but still occupying layout space — a header claiming "6 routines" above
+> black space. That split is exactly the `.reveal` boundary.
+>
+> Neither obvious fix works. Dropping the empty-list early return changes nothing,
+> because the IntersectionObserver and the failsafe both act on the element list
+> captured at scan time — which was empty. Arming the failsafe unconditionally fails
+> too: `/routines` makes several live Hevy calls and routinely lands past 1600 ms.
+> Putting `.reveal` on the skeletons fails because those nodes are discarded at the
+> swap. The content has to be picked up when it ARRIVES, so the observer now also
+> runs a `MutationObserver` over `document.body` and watches any `.reveal` element
+> added later — which covers streamed and Suspense-boundaried content generally.
+>
+> **The general rule: a layout-level effect keyed on `usePathname()` does not see a
+> route's content.** It sees whatever that route commits first.
+
 `.ui-blip` on the "changes pending" status dot remains the only *repeating* animation
 tied to a status, and keeps its exclusive meaning: the one state the user must act on.
 The button sweep is admissible beside it only because it is bounded by a request.

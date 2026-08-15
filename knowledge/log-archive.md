@@ -4,7 +4,7 @@ aliases: [log archive]
 tags: [meta, journal]
 type: meta
 created: 2026-08-08
-updated: 2026-08-14
+updated: 2026-08-15
 sources: []
 ---
 
@@ -275,3 +275,22 @@ Oldest at the top; keep original entry lines verbatim.
   takes 1–3.5 minutes, not 30–60 seconds, which promotes the unbuilt
   `streamObject` handler from nicety to the worst moment in the product.
   Separately designed and recorded, unbuilt: [[exercise-alternatives]].
+- 2026-08-09 — **Replaced the neon-HUD with the Graphite theme**
+  ([[ui-design-system]]), one day after the HUD landed. The owner said the UI/UX
+  was still bad and asked for five designs to choose from; five full mockups
+  (light-product, refined-dark, athletic, warm, dense-console) were built as
+  standalone HTML and screenshotted with **headless Chrome**, since no browser
+  extension or Playwright is available — `chrome --headless --screenshot
+  --window-size` is the whole tool, and `--force-prefers-reduced-motion` is
+  required or reveal animations freeze the capture at opacity 0. The owner
+  picked refined-dark. Porting it was mostly a token swap because the HUD had
+  been built as CSS classes rather than utility soup; `hud-*` was renamed to
+  `ui-*` wholesale rather than left behind, since `text-hud-cyan` rendering lime
+  is worse than no name at all. Deleted: `hud-backdrop.tsx`, `pointer-glow.tsx`
+  — which removes the only runtime inline style in the app. The alignment bug
+  worth remembering: pages carrying `max-w-3xl` while the nav used `max-w-5xl`
+  centred their content in a narrower column that visibly missed the brand above
+  it; one shell width for every page is the fix. Screenshotted against a seeded
+  throwaway database, because the real one still fails with the `.env`
+  `Access denied for user 'hevy'` breakage already logged on 2026-08-08.
+  (Rotated out of [[log]] on 2026-08-15 to respect the 300-line cap.)

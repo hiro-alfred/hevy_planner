@@ -13,24 +13,6 @@ sources: []
 Append-only journal of ingests, queries, and lint passes ([[schema]]). Newest entries
 at the bottom. When this page nears the 300-line cap, move the oldest entries to
 [[log-archive]].
-- 2026-08-09 — **Replaced the neon-HUD with the Graphite theme**
-  ([[ui-design-system]]), one day after the HUD landed. The owner said the UI/UX
-  was still bad and asked for five designs to choose from; five full mockups
-  (light-product, refined-dark, athletic, warm, dense-console) were built as
-  standalone HTML and screenshotted with **headless Chrome**, since no browser
-  extension or Playwright is available — `chrome --headless --screenshot
-  --window-size` is the whole tool, and `--force-prefers-reduced-motion` is
-  required or reveal animations freeze the capture at opacity 0. The owner
-  picked refined-dark. Porting it was mostly a token swap because the HUD had
-  been built as CSS classes rather than utility soup; `hud-*` was renamed to
-  `ui-*` wholesale rather than left behind, since `text-hud-cyan` rendering lime
-  is worse than no name at all. Deleted: `hud-backdrop.tsx`, `pointer-glow.tsx`
-  — which removes the only runtime inline style in the app. The alignment bug
-  worth remembering: pages carrying `max-w-3xl` while the nav used `max-w-5xl`
-  centred their content in a narrower column that visibly missed the brand above
-  it; one shell width for every page is the fix. Screenshotted against a seeded
-  throwaway database, because the real one still fails with the `.env`
-  `Access denied for user 'hevy'` breakage already logged on 2026-08-08.
 - 2026-08-11 — **Rotated the first 107 log lines into [[log-archive]]** (the whole
   SQLite-era milestone run and its reviews) to get back under the 300-line cap, then
   logged a short console-triage session: two browser errors, one real, one not.
@@ -294,3 +276,24 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   because standalone `server.js` hardcodes `NODE_ENV=production`. Not yet
   redeployed to :3000. Trap: `Set-Content -Encoding utf8` corrupted a wiki page
   (BOM plus mojibake'd em dashes) and the lint reported it as missing frontmatter.
+- 2026-08-15 — **Three bugs the owner found in the running app within the hour**,
+  two of them mine. (1) The round's own `loading.tsx` files **blanked `/routines`
+  and `/profile` entirely** — `RevealObserver` scanned for `.reveal` once per
+  pathname change, but a route with a loading state commits its FALLBACK first, so
+  the scan ran against skeletons carrying no `.reveal` and never ran again when the
+  content streamed into the Suspense boundary. `.reveal` ships at `opacity: 0`, so
+  the chrome rendered and the content did not — a group header reading "6 routines"
+  above black space. A Fable 5 subagent confirmed the mechanism and corrected the
+  proposed fix: dropping the empty-list early return changes nothing, because the
+  IntersectionObserver and the failsafe both act on the list captured at scan time.
+  A `MutationObserver` over `document.body` is what actually fixes it. The general
+  rule is worth keeping — **a layout-level effect keyed on `usePathname()` does not
+  see a route's content**. (2) `relativeDay` counted 24-hour blocks rather than
+  calendar days, printing "today" for a session done at 20:00 the previous evening;
+  now local calendar days, ROUNDED so a DST 23/25-hour gap cannot misreport.
+  (3) The container had **no `TZ`**, so it rendered every date 9 hours behind the
+  owner and `formatDay`'s UTC slice printed the wrong day outright; `TZ` is now on
+  the app service defaulting to UTC and set per-owner in `.env`. Verified on a
+  CLIENT-SIDE navigation (the deterministically broken case, not a hard load) and
+  against a workout stored at 20:00 Tokyo yesterday, which now reads "yesterday".
+  396 vitest tests, 14 wiki tests green; redeployed to :3000.

@@ -38,6 +38,14 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: mysql://hevy:${MARIADB_PASSWORD:-hevy}@db:3306/hevy_planner
+      # The TRAINEE's timezone, and it is not cosmetic. Hevy stores workout times
+      # as UTC instants, every date on the records, routines and profile screens
+      # is rendered on the SERVER, and a container with no TZ is UTC. So a
+      # session logged at 07:00 in Tokyo printed as the previous day, and
+      # "today"/"yesterday" was computed against the wrong midnight.
+      # UTC is the honest default for an unconfigured deployment; set TZ in .env
+      # to an IANA name (Europe/Berlin, America/New_York) to fix the labels.
+      TZ: ${TZ:-UTC}
       # Encrypts the stored Hevy key at rest. Deliberately has NO default: an
       # empty value means plaintext in the database volume and in every dump
       # taken from it, and a shared fallback secret would be worse than none.
