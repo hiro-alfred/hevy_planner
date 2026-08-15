@@ -9,6 +9,10 @@ const NAV = [
   { href: "/plans/new", label: "New plan" },
   { href: "/routines", label: "In Hevy" },
   { href: "/records", label: "Records" },
+  // Profile before Settings: it is about the trainee, Settings is about the
+  // app's connection to Hevy, and the two are next to each other because that
+  // is the question people confuse.
+  { href: "/profile", label: "Profile" },
   { href: "/settings", label: "Settings" },
 ];
 

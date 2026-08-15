@@ -9,6 +9,7 @@ import {
   varchar,
 } from "drizzle-orm/mysql-core";
 import { json } from "./json-column";
+import type { SavedProfile } from "@/lib/planner/profile-defaults";
 import type { Plan, PlanRequest } from "@/lib/planner/schema";
 
 // MariaDB via the mysql dialect. Two dialect rules shape the column choices
@@ -63,6 +64,27 @@ export const plans = mysqlTable("plans", {
   // a plan that no longer exists" and shows nothing.
   derivedFromPlanId: int("derived_from_plan_id"),
   createdAt: varchar("created_at", { length: 32 }).notNull(),
+  updatedAt: varchar("updated_at", { length: 32 }).notNull(),
+});
+
+// The standing trainee profile: the answers that do not change between plans.
+//
+// A SINGLETON — `id` is always PROFILE_ROW_ID. The app is single-tenant today
+// (nothing else here carries a user id either), and when open signup lands this
+// table gains a `user_id` unique key rather than a different shape.
+//
+// One JSON document rather than a column per field, for the same reason
+// `plans.request` is one: it is read and written whole, never filtered or
+// grouped by any single field, and its shape tracks planRequestSchema — which
+// has already gained and retired fields twice. A column per answer would turn
+// each of those into a migration.
+//
+// Not a row in `settings` because that table's `value` is varchar(1024), and
+// notes (500) plus injuries (200) plus a goal sentence plus JSON overhead does
+// not reliably fit. A silently truncated profile is the worst failure available.
+export const traineeProfile = mysqlTable("trainee_profile", {
+  id: int("id").primaryKey(),
+  profile: json("profile").$type<SavedProfile>().notNull(),
   updatedAt: varchar("updated_at", { length: 32 }).notNull(),
 });
 

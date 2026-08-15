@@ -74,12 +74,12 @@ const PHASES = [
 ];
 
 /** A request stored before `phase` existed still implies one; show that. */
-function phaseValue(defaults?: PlanRequest): string {
+function phaseValue(defaults?: Partial<PlanRequest>): string {
   if (!defaults) return "";
   return defaults.phase ?? derivePhase(defaults) ?? "";
 }
 
-export function AboutYouFields({ defaults }: { defaults?: PlanRequest }) {
+export function AboutYouFields({ defaults }: { defaults?: Partial<PlanRequest> }) {
   return (
     <Section title="About you" note="Optional — sharpens load suggestions and pacing.">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -126,7 +126,7 @@ export function AboutYouFields({ defaults }: { defaults?: PlanRequest }) {
  * go and test a max. These are what let the plan arrive in Hevy with starting
  * weights filled in instead of blank.
  */
-export function WorkingWeightsFields({ defaults }: { defaults?: PlanRequest }) {
+export function WorkingWeightsFields({ defaults }: { defaults?: Partial<PlanRequest> }) {
   const lifts = defaults?.currentLifts;
   return (
     <Section
@@ -179,7 +179,7 @@ export function WorkingWeightsFields({ defaults }: { defaults?: PlanRequest }) {
   );
 }
 
-export function WorkAroundFields({ defaults }: { defaults?: PlanRequest }) {
+export function WorkAroundFields({ defaults }: { defaults?: Partial<PlanRequest> }) {
   // Enforced here as well as in the schema so the third tick is impossible
   // rather than merely rejected after a round trip.
   const [focus, setFocus] = useState<string[]>(defaults?.focusMuscleGroups ?? []);

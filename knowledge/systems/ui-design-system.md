@@ -4,14 +4,18 @@ aliases: [ui, design system, graphite theme, styling, hud theme]
 tags: [ui, css, frontend, motion]
 type: subsystem
 created: 2026-08-08
-updated: 2026-08-14
+updated: 2026-08-15
 sources:
   [
     src/app/globals.css,
     src/app/ui.css,
     src/app/ui-controls.css,
     src/app/ui-login.css,
+    src/app/ui-profile.css,
     src/app/animations.css,
+    src/components/button-styles.ts,
+    src/components/action-message.tsx,
+    src/app/routines/loading.tsx,
     src/app/login/shell.tsx,
     src/app/login/art.tsx,
     src/components/site-header.tsx,
@@ -66,7 +70,8 @@ rules for `body`, selection and the focus ring.
 | `ui.css`          | page shell, type scale, `.ui-card`, `.ui-item`, nav, stats |
 | `ui-controls.css` | buttons, fields, checks, disclosure, statuses, notices   |
 | `ui-login.css`    | the sign-in screen: split frame, artwork paints, pill CTA |
-| `animations.css`  | both `@keyframes`, `.reveal`, the reduced-motion switch  |
+| `ui-profile.css`  | `/profile`: identity strip, completeness dial, skeletons  |
+| `animations.css`  | every `@keyframes`, `.reveal`, the reduced-motion switch  |
 
 The `ui.css` / `ui-controls.css` split is **not** conceptual — the two are one
 stylesheet, cut only to stay under the 300-line cap in CLAUDE.md.
@@ -134,10 +139,53 @@ components:
 Stagger uses fixed `.reveal--d1`…`.reveal--d6` classes rather than a JS-set delay,
 because inline styles are banned.
 
-The only repeating animation left is `.ui-blip` on the "changes pending" status dot —
-the one state the user is expected to act on. `prefers-reduced-motion: reduce` is
-handled in **one** block at the bottom of `animations.css` that zeroes every
-animation and transition, so no new animation has to remember to opt out.
+`prefers-reduced-motion: reduce` is handled in **one** block at the bottom of
+`animations.css` that zeroes every animation and transition, so no new animation has
+to remember to opt out.
+
+### The 2026-08-15 additions
+
+Four effects landed with [[standing-profile]], each answering a state the UI had no
+way to show. None moves in the accent colour, and none is ambient:
+
+- **`.ui-skeleton` + route `loading.tsx`** (`/routines`, `/profile`). The real gap was
+  never a missing animation — it was a missing loading state. Every route is
+  `force-dynamic`, so a prefetch delivers only the static shell and a click paints
+  **nothing** until the server finishes; on `/routines` that is several live Hevy
+  round trips. Greys only, reusing `.ui-shell` / `.ui-hero` geometry so content lands
+  where the placeholder stood rather than jumping.
+- **`.ui-btn--working`** — a sweeping 2px underline while a server action is in
+  flight, plus `opacity: 0.75` instead of the disabled `0.45`. This fixes a real bug
+  in the state model: a BUSY button looked identical to an UNAVAILABLE one, on
+  actions that run for minutes (first history sync, catalog refresh, LLM generation).
+  Indeterminate on purpose — none of those actions reports progress, so a percentage
+  would be an invention.
+- **`.ui-notice--result`** — the outcome of a press, arriving below the control where
+  the eye is not. A modifier rather than a rule on `.ui-notice`, because that base
+  class also carries a dozen static page notices that already animate in with their
+  card's `.reveal`.
+- **`.ui-dial`** — the profile completeness arc, transitioned with **no JavaScript at
+  all**: the card already carries `.reveal`, `RevealObserver` adds `.is-visible`, and
+  the stylesheet transitions `stroke-dashoffset` off that one class change.
+
+`.ui-blip` on the "changes pending" status dot remains the only *repeating* animation
+tied to a status, and keeps its exclusive meaning: the one state the user must act on.
+The button sweep is admissible beside it only because it is bounded by a request.
+
+> [!note] The rule for adding motion here
+> Never encode an animation's hidden or empty state in a plain property outside the
+> keyframe. `.reveal` does exactly that (`opacity: 0`) and is the sole reason the
+> reduced-motion block needs a second clause. The dial shows why it matters: its
+> resting value is the truth and the EMPTY state is the opt-in, behind
+> `@media (prefers-reduced-motion: no-preference)`. The other way round, a
+> reduced-motion reader would see 0% for a profile that is 75% answered — not a
+> frozen animation, a wrong number.
+
+Rejected this round, and worth keeping rejected: page-transition choreography, a
+raised `.reveal` stagger cap, anything moving inside the trend chart's frame, toasts,
+hover geometry on `.ui-item`, odometers on tabular readouts, a determinate progress
+bar for sync (there is no progress channel), and a full-page spinner instead of a
+skeleton.
 
 > [!note] The no-inline-CSS exception is gone
 > `pointer-glow.tsx` used to write `--glow-x` / `--glow-y` via

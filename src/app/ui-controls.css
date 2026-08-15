@@ -12,6 +12,10 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+    /* Both only so .ui-btn--working can put a sweeping underline inside the
+     * button's own rounded box. Nothing else uses them. */
+    position: relative;
+    overflow: hidden;
     border: 1px solid transparent;
     border-radius: 0.5625rem;
     padding: 0.6875rem 1.25rem;
@@ -31,6 +35,14 @@
   .ui-btn:disabled {
     cursor: not-allowed;
     opacity: 0.45;
+  }
+
+  /* Busy is not the same state as unavailable, and at 0.45 they looked
+   * identical — on actions that run for minutes. The sweep itself lives in
+   * animations.css so the whole motion layer stays in one file. */
+  .ui-btn--working:disabled {
+    cursor: progress;
+    opacity: 0.75;
   }
 
   .ui-btn--primary {

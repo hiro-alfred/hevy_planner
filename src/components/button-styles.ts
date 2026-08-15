@@ -11,4 +11,18 @@
 
 export type ButtonTone = "primary" | "secondary" | "danger";
 
-export const buttonClasses = (tone: ButtonTone = "primary") => `ui-btn ui-btn--${tone}`;
+/**
+ * @param working the action this button started is still in flight.
+ *
+ * This exists because `:disabled { opacity: .45 }` made a BUSY button look
+ * exactly like an UNAVAILABLE one, and several of this app's actions are slow
+ * enough for that to matter: the first history sync takes minutes, a catalog
+ * refresh walks the whole library, and plan generation runs an LLM. The only
+ * signal was a swapped label, on a control that had just faded out.
+ *
+ * `.ui-btn--working` restores most of the opacity and adds a sweeping underline
+ * — indeterminate on purpose. None of those actions reports progress; they
+ * return once, at the end, so a percentage would be an invention.
+ */
+export const buttonClasses = (tone: ButtonTone = "primary", working = false) =>
+  `ui-btn ui-btn--${tone}${working ? " ui-btn--working" : ""}`;

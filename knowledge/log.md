@@ -4,7 +4,7 @@ aliases: [log, journal]
 tags: [meta, journal]
 type: meta
 created: 2026-08-08
-updated: 2026-08-14
+updated: 2026-08-15
 sources: []
 ---
 
@@ -270,3 +270,27 @@ at the bottom. When this page nears the 300-line cap, move the oldest entries to
   authorize link). `tsc`, lint, `next build`, 366 vitest tests, 14 wiki tests green;
   screenshotted in both auth modes and stacked; `docker compose up -d --build`
   redeployed :3000 (`/login` 200, `/` 307, boot log clean).
+- 2026-08-15 — **Built `/profile` ([[standing-profile]]) and four animations
+  ([[ui-design-system]])**, asked for together. Three Opus 5 subagents surveyed the
+  codebase first: one on motion, one on profile features, one mapping components,
+  CSS vocabulary, schema and the action pattern. The motion survey's finding
+  reframed the request — the gap was not a missing effect but a missing LOADING
+  state, since every route is `force-dynamic` and a click paints nothing until the
+  server answers. Shipped: route skeletons, `.ui-btn--working` (a busy button was
+  visually identical to an unavailable one, on actions that run for minutes),
+  `.ui-notice--result`, and a completeness dial that transitions with zero
+  JavaScript by riding `RevealObserver`'s `.is-visible`. The profile page adds **no
+  new questions** — it persists the fields the plan form already had, which is what
+  keeps the [[trainee-profile]] governing rule intact — and `/plans/new` now
+  pre-fills from it with a notice saying so, because a stale bodyweight silently
+  feeding [[suggested-loads]] into a routine Hevy cannot delete is the one hazard
+  the feature introduces. Cut as fiction after checking for consumers: a kg/lbs
+  toggle (`weight_unit` has none), a real avatar (the Google scope is `openid
+  email`), a bodyweight chart (no log), streaks and delete-my-account. Migration
+  0003 adds `trainee_profile` as one JSON document on a singleton row. `tsc`, lint,
+  `next build`, **383** vitest tests and 14 wiki tests green. Screenshotted by
+  staging the standalone build on :3005 against a throwaway database and **minting
+  a session cookie** to get past the gate — `AUTH_DISABLED` is unavailable there
+  because standalone `server.js` hardcodes `NODE_ENV=production`. Not yet
+  redeployed to :3000. Trap: `Set-Content -Encoding utf8` corrupted a wiki page
+  (BOM plus mojibake'd em dashes) and the lint reported it as missing frontmatter.

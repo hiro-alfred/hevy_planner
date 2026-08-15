@@ -1,8 +1,18 @@
 /* Motion layer.
  *
- * Deliberately small: two effects, both opt-in through a class, and the
+ * Deliberately small, and every effect opt-in through a class. The
  * prefers-reduced-motion block at the bottom switches everything off in one
- * place — so nothing here needs to remember to opt out individually.
+ * place, so nothing here needs to remember to opt out individually.
+ *
+ * ONE RULE governs additions: never encode an animation's hidden or empty state
+ * in a plain property outside the keyframe. `.reveal` does exactly that
+ * (opacity: 0) and is the only reason the reduced-motion block needs a second
+ * clause. Anything that transitions between two real states — the dial, the
+ * button sweep — is covered by the blanket for free.
+ *
+ * Nothing here moves in the accent colour. The accent marks the primary action,
+ * the active nav item and the current day; motion is not one of those, and the
+ * neon-HUD theme was deleted for exactly this kind of creep.
  */
 
 @keyframes ui-rise {
@@ -25,6 +35,27 @@
   }
   50% {
     opacity: 0.4;
+  }
+}
+
+/* Placeholder sheen. Travels right-to-left so it reads as "filling in" rather
+ * than as something scrolling past. */
+@keyframes ui-sheen {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* The underline on a button whose action is in flight. */
+@keyframes ui-sweep {
+  from {
+    transform: translate3d(-100%, 0, 0);
+  }
+  to {
+    transform: translate3d(100%, 0, 0);
   }
 }
 
@@ -63,6 +94,105 @@
 
   .ui-blip {
     animation: ui-pulse 2s ease-in-out infinite;
+  }
+
+  /* Skeleton sheen, for the route-level loading states.
+   *
+   * Every page is force-dynamic, so a prefetch delivers only the static shell
+   * and clicking a row paints NOTHING until the server finishes — worst on
+   * /routines, which makes live Hevy calls on every navigation. Greys only: a
+   * placeholder is not content, and tinting it would advertise the wait. */
+  .ui-skeleton {
+    border-radius: 0.5rem;
+    background: linear-gradient(
+      90deg,
+      var(--color-ui-surface),
+      var(--color-ui-surface-2),
+      var(--color-ui-surface)
+    );
+    background-size: 200% 100%;
+    animation: ui-sheen 1.4s linear infinite;
+  }
+
+  /* A button whose action is still running. Bounded by the request, not
+   * ambient, which is why it does not devalue .ui-blip's one meaning. */
+  .ui-btn--working::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 2px;
+    background: currentColor;
+    opacity: 0.55;
+    animation: ui-sweep 1.1s linear infinite;
+  }
+
+  /* The outcome of a press, arriving below the control that produced it. */
+  .ui-notice--result {
+    animation: ui-rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* The swap and edit panels, which otherwise shove ~200px of the day down with
+   * no continuity. They only exist in the DOM while open, so mounting IS the
+   * state change and no toggle class is needed. */
+  .ui-swap__panel {
+    animation: ui-rise 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* ---- profile completeness dial --------------------------------------- */
+
+  /* r=30, so the circumference is 2*pi*30 = 188.5, and the arc is drawn by
+   * moving stroke-dashoffset from that (empty) down to 0 (full). Fixed classes
+   * rather than a JS-set custom property, for the same reason the reveal
+   * stagger uses them: inline styles are banned, with no SVG exemption.
+   *
+   * These are the RESTING values, so the dial reads correctly with no
+   * JavaScript at all. The animation is added below, as a start state that
+   * exists only when motion is welcome. */
+  .ui-dial__value {
+    transition: stroke-dashoffset 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .ui-dial--f0 .ui-dial__value {
+    stroke-dashoffset: 188.5;
+  }
+  .ui-dial--f1 .ui-dial__value {
+    stroke-dashoffset: 164.9;
+  }
+  .ui-dial--f2 .ui-dial__value {
+    stroke-dashoffset: 141.4;
+  }
+  .ui-dial--f3 .ui-dial__value {
+    stroke-dashoffset: 117.8;
+  }
+  .ui-dial--f4 .ui-dial__value {
+    stroke-dashoffset: 94.2;
+  }
+  .ui-dial--f5 .ui-dial__value {
+    stroke-dashoffset: 70.7;
+  }
+  .ui-dial--f6 .ui-dial__value {
+    stroke-dashoffset: 47.1;
+  }
+  .ui-dial--f7 .ui-dial__value {
+    stroke-dashoffset: 23.6;
+  }
+  .ui-dial--f8 .ui-dial__value {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* The dial's empty START state, and the one place in this file that a
+ * media query is the right tool rather than the blanket at the bottom.
+ *
+ * It has to be scoped this way round. Putting "empty" in the base rule would
+ * make a reduced-motion reader — or anyone whose IntersectionObserver callback
+ * has not fired yet — see 0% for a profile that is 75% answered, which is not a
+ * frozen animation but a WRONG NUMBER. Here the resting value is the truth and
+ * the empty state is the opt-in. */
+@media (prefers-reduced-motion: no-preference) {
+  .reveal:not(.is-visible) .ui-dial__value {
+    stroke-dashoffset: 188.5;
   }
 }
 

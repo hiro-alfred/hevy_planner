@@ -24,8 +24,14 @@ const MAINTAIN_BAND_KG = 2;
  *
  * Its weakness is the reason it was replaced: it needs BOTH weights, so a
  * trainee who gave a bodyweight and no target got no phase at all.
+ *
+ * Takes the two weights rather than a whole PlanRequest so the plan form can
+ * call it with a PARTIAL request — the shape a saved profile has. A full
+ * request still satisfies it; nothing at the existing call sites changes.
  */
-export function derivePhase(request: PlanRequest): Phase | null {
+export function derivePhase(
+  request: Pick<PlanRequest, "bodyweightKg" | "targetWeightKg">,
+): Phase | null {
   const { bodyweightKg, targetWeightKg } = request;
   if (bodyweightKg === undefined || targetWeightKg === undefined) return null;
 

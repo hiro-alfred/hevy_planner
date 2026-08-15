@@ -4,7 +4,7 @@ aliases: [index, hub, catalog]
 tags: [hub]
 type: hub
 created: 2026-08-08
-updated: 2026-08-14
+updated: 2026-08-15
 sources: [knowledge/]
 ---
 
@@ -59,6 +59,8 @@ category. Start here; conventions live in [[schema]].
   behind them.
 - [[trainee-profile]] — the optional intake fields, what each one mechanically
   changes, and why height was rejected.
+- [[standing-profile]] — `/profile`: the answers that persist between plans, the
+  completeness dial, account-level stats, and what was cut as fiction.
 - [[workout-history]] — the local mirror of logged workouts: backfill vs delta
   sync, the cursor rules, and why `/v1/exercise_history` is unused.
 - [[exercise-records]] — the `/records` screens: which metrics count as records,

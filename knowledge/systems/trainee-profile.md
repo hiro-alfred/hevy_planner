@@ -4,7 +4,7 @@ aliases: [profile, intake, intake form, body metrics, current lifts]
 tags: [subsystem, planner, form, llm]
 type: subsystem
 created: 2026-08-08
-updated: 2026-08-11
+updated: 2026-08-15
 sources:
   [
     src/lib/planner/profile.ts,
@@ -26,6 +26,10 @@ The optional half of a plan request, added 2026-08-08 so plans are tailored rath
 than generic. Feeds [[plan-generation]] through the prompt; every field is
 skippable and a request with none of them produces exactly the plan the app made
 before they existed.
+
+These fields are asked ONCE per request. Since 2026-08-15 they can also be saved
+so they persist between requests — see [[standing-profile]], which adds no new
+questions and stores exactly the fields below.
 
 ## The governing rule
 

@@ -8,46 +8,24 @@ import { DEFAULT_EQUIPMENT, EQUIPMENT_CATEGORIES, EQUIPMENT_LABELS } from "@/lib
 import type { PlanRequest } from "@/lib/planner/schema";
 import { createPlanAction } from "../actions";
 import { Field, Section } from "./field";
+import { EXPERIENCE, GOAL_KINDS, MINUTES, SESSIONS, SPLITS } from "./options";
 import { AboutYouFields, WorkAroundFields, WorkingWeightsFields } from "./profile-fields";
-
-const SESSIONS = [2, 3, 4, 5, 6];
-const MINUTES = [30, 45, 60, 75, 90];
-
-const SPLITS = [
-  { value: "auto", label: "Pick for me" },
-  { value: "full_body", label: "Full body" },
-  { value: "upper_lower", label: "Upper / lower" },
-  { value: "push_pull_legs", label: "Push / pull / legs" },
-];
-
-const EXPERIENCE = [
-  { value: "beginner", label: "Beginner" },
-  { value: "intermediate", label: "Intermediate" },
-  { value: "advanced", label: "Advanced" },
-];
-
-/**
- * The rep range and rest, statable rather than guessable.
- *
- * "Read it from what I wrote" stays the default so the sentence above keeps
- * meaning something — a select that silently overrode the text would be worse
- * than the guessing it replaced. Picking one pins it beyond argument.
- */
-const GOAL_KINDS = [
-  { value: "", label: "Read it from what I wrote" },
-  { value: "hypertrophy", label: "Muscle — 8-12 reps, 90s rest" },
-  { value: "strength", label: "Strength — 3-6 reps, 3min rest" },
-  { value: "endurance", label: "Endurance — 12-20 reps, 60s rest" },
-];
 
 /**
  * Plan request form. Generation runs inside the server action and can take a
  * while with an LLM configured, so the submit button carries the pending state.
  *
- * Serves two callers: creating a plan, and editing an existing plan's request.
- * The edit case passes `defaults` from the stored request and its own action —
- * which forks rather than overwriting — so the two flows share one form instead
- * of drifting apart field by field.
+ * Serves three callers: creating a plan, editing an existing plan's request,
+ * and — since the profile page landed — creating a plan pre-filled from the
+ * standing profile. The edit case passes `defaults` from the stored request and
+ * its own action, which forks rather than overwriting, so the flows share one
+ * form instead of drifting apart field by field.
+ *
+ * `defaults` is a PARTIAL request, not a whole one. A stored plan request is
+ * complete, but a saved profile answers only what its owner chose to answer —
+ * and every read below is already `defaults?.x ?? fallback`, so widening the
+ * type changes no behaviour. Typing a partial object as a PlanRequest would be
+ * a lie the compiler would accept and the form would then act on.
  */
 export function PlanForm({
   action = createPlanAction,
@@ -57,7 +35,7 @@ export function PlanForm({
   note = "Nothing is sent to Hevy until you review the plan and press sync.",
 }: {
   action?: (prev: ActionState, formData: FormData) => Promise<ActionState>;
-  defaults?: PlanRequest;
+  defaults?: Partial<PlanRequest>;
   submitLabel?: string;
   pendingLabel?: string;
   note?: string;
@@ -186,7 +164,11 @@ export function PlanForm({
 
       <div className="flex flex-col gap-3 border-t border-ui-line pt-5">
         <div className="flex flex-wrap items-center gap-3">
-          <button type="submit" disabled={isPending} className={buttonClasses("primary")}>
+          <button
+            type="submit"
+            disabled={isPending}
+            className={buttonClasses("primary", isPending)}
+          >
             {isPending ? pendingLabel : submitLabel}
           </button>
           <span className="ui-sub text-xs">{note}</span>

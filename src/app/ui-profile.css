@@ -1,0 +1,228 @@
+/* The profile screen: identity strip, completeness dial and its checklist, the
+ * at-a-glance facts, and the muscle-share chips.
+ *
+ * Its own file rather than more of ui.css, following ui-login.css: these
+ * classes appear on exactly one route, and ui.css is a shared vocabulary that
+ * every page reads. The 300-line cap in CLAUDE.md is the other half of the
+ * reason — ui.css is already at 255.
+ *
+ * NOTHING here paints in --color-ui-accent. The accent marks the primary
+ * action, the active nav item and the current day; a dial, a monogram and a
+ * percentage are none of those.
+ */
+
+@layer components {
+  /* ---- identity strip -------------------------------------------------- */
+
+  .ui-profile__id {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  /* A drawn monogram, not an avatar. Google is asked for the `openid email`
+   * scope only, so no name and no picture ever arrive — a real avatar would
+   * mean widening the consent screen to buy decoration. */
+  .ui-monogram {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex-shrink: 0;
+    border: 1px solid var(--color-ui-line);
+    border-radius: 0.75rem;
+    background: var(--color-ui-surface-2);
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-ui-dim);
+  }
+
+  .ui-profile__name {
+    overflow-wrap: anywhere;
+    font-size: 0.9375rem;
+    font-weight: 550;
+  }
+
+  .ui-profile__meta {
+    font-size: 0.8125rem;
+    color: var(--color-ui-faint);
+  }
+
+  .ui-profile__conn {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-left: auto;
+  }
+
+  .ui-profile__link {
+    font-size: 0.8125rem;
+    color: var(--color-ui-dim);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    transition: color 0.18s ease;
+  }
+
+  .ui-profile__link:hover {
+    color: var(--color-ui-ink);
+  }
+
+  /* ---- completeness dial ----------------------------------------------- */
+
+  .ui-profile__gauge {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 1.5rem 2rem;
+  }
+
+  .ui-dial-wrap {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 6.5rem;
+    height: 6.5rem;
+  }
+
+  .ui-dial {
+    width: 100%;
+    height: 100%;
+    /* Twelve o'clock start. A dial that begins at three reads as a pie chart. */
+    transform: rotate(-90deg);
+  }
+
+  .ui-dial__track,
+  .ui-dial__value {
+    fill: none;
+    stroke-width: 6;
+  }
+
+  .ui-dial__track {
+    stroke: var(--color-ui-line);
+  }
+
+  /* 188.5 is the full circumference at r=30; the dash is the whole circle so
+   * the offset alone controls how much of it is painted. The offset values
+   * themselves live in animations.css, beside the transition that moves them. */
+  .ui-dial__value {
+    stroke: var(--color-ui-ink);
+    stroke-dasharray: 188.5;
+    stroke-linecap: round;
+  }
+
+  /* The same green the "ok" status chip uses — a palette this app already
+   * reads as done, rather than a second meaning for the accent. */
+  .ui-dial--done .ui-dial__value {
+    stroke: var(--color-ui-ok);
+  }
+
+  .ui-dial__readout {
+    position: absolute;
+    font-size: 1.0625rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  /* ---- the checklist --------------------------------------------------- */
+
+  .ui-profile__checks {
+    display: grid;
+    flex: 1 1 22rem;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 0.5rem 1.5rem;
+  }
+
+  .ui-check-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.625rem;
+    font-size: 0.8125rem;
+    color: var(--color-ui-dim);
+  }
+
+  .ui-check-row__mark {
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    color: #4a5057;
+  }
+
+  .ui-check-row.is-done .ui-check-row__mark {
+    color: var(--color-ui-ok);
+  }
+
+  .ui-check-row.is-done .ui-check-row__label {
+    color: var(--color-ui-ink);
+  }
+
+  .ui-check-row__label {
+    display: block;
+  }
+
+  /* What the blank costs. Only rendered for unanswered items — a filled field's
+   * effect is already happening and does not need arguing for. */
+  .ui-check-row__why {
+    display: block;
+    margin-top: 0.125rem;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    color: var(--color-ui-faint);
+  }
+
+  /* ---- at a glance ----------------------------------------------------- */
+
+  .ui-profile__facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 0.75rem 1.5rem;
+  }
+
+  .ui-profile__fact {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid var(--color-ui-line-soft);
+    padding-bottom: 0.5rem;
+  }
+
+  .ui-share {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    border: 1px solid var(--color-ui-line);
+    border-radius: 0.5rem;
+    background: var(--color-ui-inset);
+    padding: 0.375rem 0.625rem;
+    font-size: 0.8125rem;
+    color: var(--color-ui-dim);
+  }
+
+  .ui-share__pct {
+    font-size: 0.75rem;
+    color: var(--color-ui-ink);
+  }
+
+  /* ---- loading skeletons ----------------------------------------------- */
+
+  /* Fixed heights matching the real content's, so the page does not jump when
+   * it lands. The sheen itself is in animations.css. */
+  .ui-skel-line {
+    height: 0.875rem;
+  }
+
+  .ui-skel-title {
+    height: 2rem;
+    max-width: 18rem;
+  }
+
+  .ui-skel-card {
+    height: 9rem;
+  }
+
+  .ui-skel-stat {
+    height: 3.75rem;
+  }
+}

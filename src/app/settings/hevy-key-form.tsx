@@ -34,7 +34,11 @@ export function HevyKeyForm() {
         className="ui-field ui-mono"
       />
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={isPending} className={buttonClasses("primary")}>
+        <button
+          type="submit"
+          disabled={isPending}
+          className={buttonClasses("primary", isPending)}
+        >
           {isPending ? "Verifying…" : "Save key"}
         </button>
         <span className="ui-sub text-xs">Verified against Hevy before it is saved.</span>
